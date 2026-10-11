@@ -82,6 +82,8 @@ export function generatePlayerShips(): Ship[] {
           hasFired: false,
           compartments,
           stats,
+          battleLog: [],
+          isSunk: false,
         });
         placed = true;
       }
@@ -139,6 +141,8 @@ export function generateEnemyShips(): Ship[] {
           hasFired: false,
           compartments,
           stats,
+          battleLog: [],
+          isSunk: false,
         });
         placed = true;
       }

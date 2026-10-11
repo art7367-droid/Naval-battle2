@@ -58,7 +58,8 @@ export default function ShipEditor({ compartments, onCompartmentsChange }: ShipE
         armor: 50,
         flooded: 0,
         fire: 0,
-        components: []
+        components: [],
+        adjacentIds: []
       };
       
       onCompartmentsChange([...compartments, newCompartment]);

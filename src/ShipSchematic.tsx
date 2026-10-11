@@ -9,6 +9,7 @@ export default function ShipSchematic({ ship }: ShipSchematicProps) {
     switch (comp.status) {
       case 'destroyed': return '#dc2626';
       case 'flooded': return '#2563eb';
+      case 'on_fire': return '#f97316';
       case 'damaged': return '#ea580c';
       default: return '#16a34a';
     }

@@ -66,10 +66,18 @@ export default function ShipDetailView({ ship }: ShipDetailViewProps) {
       <div className="text-center mb-2 flex-shrink-0">
         <h3 className="text-base font-bold text-cyan-300">
           {ship.type === 'battleship' ? '🚢' : ship.type === 'cruiser' ? '⛴️' : '🚤'} {ship.name}
+          {ship.isSunk && <span className="ml-2 text-red-400">☠️ ПОТОПЛЕН</span>}
         </h3>
         <div className="text-xs text-slate-400">
           HP: {ship.currentHP}/{ship.maxHP}
+          {ship.stats.fires > 0 && <span className="ml-2 text-orange-400">🔥 {ship.stats.fires} пожар(ов)</span>}
+          {ship.stats.flooding > 0 && <span className="ml-2 text-blue-400">🌊 Затопление {Math.round(ship.stats.flooding * 100)}%</span>}
         </div>
+        {ship.isSunk && ship.sinkCause && (
+          <div className="text-xs text-red-400 mt-1">
+            Причина: {ship.sinkCause === 'buoyancy' ? 'Потеря плавучести' : ship.sinkCause === 'flooding' ? 'Критическое затопление' : 'Взрыв боезапаса'}
+          </div>
+        )}
       </div>
 
       {/* Переключатель режимов */}

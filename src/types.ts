@@ -17,7 +17,21 @@ export type CompartmentDeck = 'upper' | 'middle' | 'lower' | 'bottom';
 export type CompartmentSide = 'port' | 'center' | 'starboard';
 
 // Состояние отсека
-export type CompartmentStatus = 'intact' | 'damaged' | 'flooded' | 'destroyed';
+export type CompartmentStatus = 'intact' | 'damaged' | 'flooded' | 'destroyed' | 'on_fire';
+
+// Запись журнала боя
+export interface BattleLogEntry {
+  id: string;
+  turn: number;
+  timestamp: number;
+  type: 'fire_start' | 'fire_spread' | 'fire_extinguished' | 'flooding_start' | 'flooding_spread' | 'ammo_detonation' | 'ship_sunk' | 'critical_damage' | 'shot_hit' | 'shot_miss';
+  shipId: number;
+  shipName: string;
+  compartmentId?: string;
+  compartmentName?: string;
+  message: string;
+  severity: 'info' | 'warning' | 'critical';
+}
 
 // Тип компонента
 export type ComponentType = 
@@ -54,6 +68,10 @@ export interface Compartment {
   flooded: number;
   fire: number;
   components: Component[];
+  // Соседние отсеки для распространения
+  adjacentIds: string[];
+  // Флаг детонации боезапаса
+  detonated?: boolean;
 }
 
 // Агрегированные характеристики корабля
@@ -87,6 +105,10 @@ export interface Ship {
   hasFired: boolean;
   compartments: Compartment[];
   stats: ShipStats;
+  // Ходовая механика повреждений
+  battleLog: BattleLogEntry[];
+  isSunk: boolean;
+  sinkCause?: 'flooding' | 'detonation' | 'buoyancy';
 }
 
 export type Heading = 0 | 1 | 2 | 3 | 4 | 5;
@@ -274,11 +296,34 @@ export function createCompartments(shipType: ShipType): Compartment[] {
           armor,
           flooded: 0.0,
           fire: 0.0,
-          components: createComponentsForCompartment(position, deck, shipType)
+          components: createComponentsForCompartment(position, deck, shipType),
+          adjacentIds: [] // будет заполнено ниже
         });
       }
     }
   }
+
+  // Заполняем adjacentIds - соседние отсеки
+  compartments.forEach(comp => {
+    const adjacent = compartments.filter(other => {
+      if (other.id === comp.id) return false;
+      // Соседние по позиции
+      const posOrder: CompartmentPosition[] = ['bow', 'forward', 'mid', 'aft', 'stern'];
+      const deckOrder: CompartmentDeck[] = ['upper', 'middle', 'lower', 'bottom'];
+      const posDiff = Math.abs(posOrder.indexOf(comp.position) - posOrder.indexOf(other.position));
+      const deckDiff = Math.abs(deckOrder.indexOf(comp.deck) - deckOrder.indexOf(other.deck));
+      
+      // Соседние по позиции (рядом по длине)
+      if (posDiff === 1 && comp.deck === other.deck) return true;
+      // Соседние по палубе (над/под)
+      if (deckDiff === 1 && comp.position === other.position) return true;
+      // Соседние по борту
+      if (comp.position === other.position && comp.deck === other.deck) return true;
+      
+      return false;
+    });
+    comp.adjacentIds = adjacent.map(a => a.id);
+  });
 
   return compartments;
 }

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Ship, GamePhase, Shot, Trajectory } from './types';
+import { Ship, GamePhase, Shot, Trajectory, BattleLogEntry } from './types';
 import { ShipDatabaseEntry } from './types/shipDatabase';
 import {
   generatePlayerShips,
@@ -11,8 +11,10 @@ import {
   getHeading,
 } from './gameLogic';
 import { resetAI, generateAIShots, generateAIMoves, updateAIAfterShots } from './ai';
+import { processDamagePropagation } from './damagePropagation';
 import HexGrid from './HexGrid';
 import ShipDetailView from './ShipDetailView';
+import BattleLog from './components/BattleLog';
 import ShipDatabaseManager from './components/ShipDatabaseManager';
 import ShipSelectionScreen from './components/ShipSelectionScreen';
 
@@ -47,6 +49,8 @@ function App() {
   const [selectedShipForDetail, setSelectedShipForDetail] = useState<Ship | null>(null);
   const [selectedPlayerShipsFromDB, setSelectedPlayerShipsFromDB] = useState<ShipDatabaseEntry[]>([]);
   const [selectedEnemyShipsFromDB, setSelectedEnemyShipsFromDB] = useState<ShipDatabaseEntry[]>([]);
+  const [battleLog, setBattleLog] = useState<BattleLogEntry[]>([]);
+  const [showBattleLog, setShowBattleLog] = useState(false);
 
   const startBattle = useCallback(() => {
     const pShips = generatePlayerShips();
@@ -256,16 +260,67 @@ function App() {
     setMessage('Выстрелы выполняются...');
 
     setTimeout(() => {
+      // Выполняем выстрелы игрока
       const playerResult = executeShots(playerShotTargets, playerShips, enemyShips);
-      setEnemyShips(playerResult.updatedShips);
+      let updatedEnemyShips = playerResult.updatedShips;
       setPlayerShots(playerResult.shots);
+      
+      // Добавляем попадания в журнал
+      const hitLogs: BattleLogEntry[] = playerResult.shots
+        .filter(s => s.hit)
+        .map(s => ({
+          id: `log_${Date.now()}_${Math.random()}`,
+          turn: turnNumber,
+          timestamp: Date.now(),
+          type: 'shot_hit' as const,
+          shipId: s.shipId,
+          shipName: s.shipName,
+          message: `🎯 ${s.shipName} попал в ${s.targetShipName} (${s.damage} урона)`,
+          severity: 'info' as const
+        }));
 
+      // Выстрелы противника
       const enemyShotTargets = generateAIShots(enemyShips, playerShips);
       const enemyResult = executeShots(enemyShotTargets, enemyShips, playerShips);
-      setPlayerShips(enemyResult.updatedShips);
+      let updatedPlayerShips = enemyResult.updatedShips;
       setEnemyShots(enemyResult.shots);
+      
+      // Добавляем попадания врага в журнал
+      const enemyHitLogs: BattleLogEntry[] = enemyResult.shots
+        .filter(s => s.hit)
+        .map(s => ({
+          id: `log_${Date.now()}_${Math.random()}`,
+          turn: turnNumber,
+          timestamp: Date.now(),
+          type: 'shot_hit' as const,
+          shipId: s.shipId,
+          shipName: s.shipName,
+          message: `🎯 Вражеский ${s.shipName} попал в ${s.targetShipName} (${s.damage} урона)`,
+          severity: 'warning' as const
+        }));
 
       updateAIAfterShots(enemyResult.shots, enemyResult.updatedShips);
+
+      // Обработка распространения повреждений
+      const propagationResult = processDamagePropagation(
+        [...updatedPlayerShips, ...updatedEnemyShips],
+        turnNumber
+      );
+      
+      // Разделяем обратно на игроков и врагов
+      updatedPlayerShips = propagationResult.ships.filter(s => s.id < 100);
+      updatedEnemyShips = propagationResult.ships.filter(s => s.id >= 100);
+      
+      setPlayerShips(updatedPlayerShips);
+      setEnemyShips(updatedEnemyShips);
+      
+      // Обновляем журнал боя
+      setBattleLog(prev => [
+        ...prev,
+        ...hitLogs,
+        ...enemyHitLogs,
+        ...propagationResult.allLogs
+      ]);
 
       setIsAnimating(false);
       setPhase('results');
@@ -273,14 +328,25 @@ function App() {
       const playerHits = playerResult.shots.filter(s => s.hit).length;
       const enemyHits = enemyResult.shots.filter(s => s.hit).length;
       
+      // Подсчёт потопленных кораблей
+      const sunkPlayer = updatedPlayerShips.filter(s => s.isSunk).length;
+      const sunkEnemy = updatedEnemyShips.filter(s => s.isSunk).length;
+      
       let resultMsg = `Результаты хода ${turnNumber}:\n`;
       resultMsg += `Ваши попадания: ${playerHits}/${playerShotTargets.length}\n`;
       resultMsg += `Попадания врага: ${enemyHits}/${enemyShotTargets.length}\n`;
       
-      if (allShipsSunk(playerResult.updatedShips)) {
+      // Добавляем информацию о пожарах и затоплениях
+      const playerFires = updatedPlayerShips.reduce((sum, s) => sum + s.stats.fires, 0);
+      const enemyFires = updatedEnemyShips.reduce((sum, s) => sum + s.stats.fires, 0);
+      if (playerFires > 0 || enemyFires > 0) {
+        resultMsg += `\n🔥 Пожары: ваши ${playerFires}, враг ${enemyFires}\n`;
+      }
+      
+      if (allShipsSunk(updatedPlayerShips) || sunkPlayer === playerShips.length) {
         resultMsg += '\n💀 Поражение! Все ваши корабли потоплены!';
         setPhase('gameOver');
-      } else if (allShipsSunk(enemyResult.updatedShips)) {
+      } else if (allShipsSunk(updatedEnemyShips) || sunkEnemy === enemyShips.length) {
         resultMsg += '\n🏆 Победа! Все корабли противника потоплены!';
         setPhase('gameOver');
       } else {
@@ -356,6 +422,8 @@ function App() {
     setSelectedShipForDetail(null);
     setSelectedPlayerShipsFromDB([]);
     setSelectedEnemyShipsFromDB([]);
+    setBattleLog([]);
+    setShowBattleLog(false);
     resetAI();
   };
 
@@ -486,6 +554,14 @@ function App() {
               ➡️ Следующий ход
             </button>
           )}
+          {(phase === 'results' || phase === 'gameOver') && battleLog.length > 0 && (
+            <button
+              onClick={() => setShowBattleLog(!showBattleLog)}
+              className="px-5 py-2 bg-gradient-to-r from-slate-600 to-slate-700 rounded-lg font-semibold hover:from-slate-700 hover:to-slate-800 transition-all shadow-lg"
+            >
+              📜 {showBattleLog ? 'Скрыть' : 'Показать'} журнал ({battleLog.length})
+            </button>
+          )}
           {phase === 'gameOver' && (
             <button
               onClick={resetGame}
@@ -505,9 +581,11 @@ function App() {
                   <button
                     key={ship.id}
                     onClick={() => phase === 'movement' && handleShipSelectForMove(ship)}
-                    disabled={ship.currentHP <= 0 || ship.hasMoved}
-                    className={`px-2 py-1 rounded transition-all ${
-                      ship.currentHP <= 0
+                    disabled={ship.currentHP <= 0 || ship.hasMoved || ship.isSunk}
+                    className={`px-2 py-1 rounded transition-all relative ${
+                      ship.isSunk
+                        ? 'bg-gray-900/70 text-gray-400 line-through opacity-60'
+                        : ship.currentHP <= 0
                         ? 'bg-red-900/50 text-red-300 line-through opacity-50'
                         : selectedShipForMove?.id === ship.id
                         ? 'bg-green-600/70 text-green-100 ring-2 ring-green-400'
@@ -516,7 +594,11 @@ function App() {
                         : 'bg-slate-700/50 text-slate-300'
                     }`}
                   >
-                    {shipIcon(ship.type)} {ship.currentHP}/{ship.maxHP} HP | ⚡{ship.speed} | 🎯{ship.range}
+                    {shipIcon(ship.type)} {ship.currentHP}/{ship.maxHP}
+                    {/* Индикаторы пожаров и затоплений */}
+                    {ship.stats.fires > 0 && <span className="ml-1" title={`${ship.stats.fires} пожар(ов)`}>🔥</span>}
+                    {ship.stats.flooding > 0.1 && <span className="ml-1" title={`Затопление ${Math.round(ship.stats.flooding * 100)}%`}>🌊</span>}
+                    {ship.isSunk && <span className="ml-1" title="Потоплен">☠️</span>}
                   </button>
                 ))}
               </div>
@@ -528,14 +610,20 @@ function App() {
                   <div
                     key={ship.id}
                     className={`px-2 py-1 rounded ${
-                      ship.currentHP <= 0
+                      ship.isSunk
+                        ? 'bg-gray-900/70 text-gray-400 line-through opacity-60'
+                        : ship.currentHP <= 0
                         ? 'bg-red-900/50 text-red-300 line-through opacity-50'
                         : ship.currentHP < ship.maxHP
                         ? 'bg-orange-600/50 text-orange-200'
                         : 'bg-slate-700/50 text-slate-300'
                     }`}
                   >
-                    {shipIcon(ship.type)} {ship.currentHP}/{ship.maxHP} HP
+                    {shipIcon(ship.type)} {ship.currentHP}/{ship.maxHP}
+                    {/* Индикаторы пожаров и затоплений */}
+                    {ship.stats.fires > 0 && <span className="ml-1" title={`${ship.stats.fires} пожар(ов)`}>🔥</span>}
+                    {ship.stats.flooding > 0.1 && <span className="ml-1" title={`Затопление ${Math.round(ship.stats.flooding * 100)}%`}>🌊</span>}
+                    {ship.isSunk && <span className="ml-1" title="Потоплен">☠️</span>}
                   </div>
                 ))}
               </div>
@@ -544,8 +632,11 @@ function App() {
         )}
 
         {phase !== 'placement' && (
-          <div className="flex justify-center gap-4">
-            <ShipDetailView ship={selectedShipForDetail} />
+          <div className="flex flex-col lg:flex-row justify-center gap-4 items-start">
+            <div className="flex flex-col gap-4">
+              <ShipDetailView ship={selectedShipForDetail} />
+              {showBattleLog && <BattleLog entries={battleLog} title="Журнал боя" />}
+            </div>
             <HexGrid
               playerShips={playerShips}
               enemyShips={enemyShips}
