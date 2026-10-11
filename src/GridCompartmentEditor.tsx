@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Ship, Compartment, CompartmentDeck, CompartmentPosition } from './types';
 
 interface GridCompartmentEditorProps {
@@ -31,6 +31,7 @@ export default function GridCompartmentEditor({
   const [selectedCompartment, setSelectedCompartment] = useState<string | null>(null);
   const [draggingCompartment, setDraggingCompartment] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<GridPosition>({ x: 0, y: 0 });
+  const [dragPosition, setDragPosition] = useState<GridPosition>({ x: 0, y: 0 });
   const [compartmentOpacity, setCompartmentOpacity] = useState(0.7);
   const [showGrid, setShowGrid] = useState(true);
   const [showCompartments, setShowCompartments] = useState(true);
@@ -45,16 +46,19 @@ export default function GridCompartmentEditor({
   const cols = Math.floor((width - padding * 2) / gridSize);
   const rows = Math.floor((height - padding * 2) / gridSize);
 
-  // Конвертируем отсеки в перетаскиваемые объекты
+  // Конвертируем отсеки в перетаскиваемые объекты с учётом текущей позиции перетаскивания
   const draggableCompartments: DraggableCompartment[] = compartments.map((comp, idx) => {
     // Начальная позиция на основе палубы и позиции
     const deckIndex = comp.deck === 'upper' ? 0 : comp.deck === 'middle' ? 1 : 2;
     const positionIndex = comp.positionFromBow ? Math.floor(comp.positionFromBow / 10) : idx % 20;
     
+    // Если этот отсек перетаскивается, используем текущую позицию перетаскивания
+    const isDragging = draggingCompartment === comp.id;
+    
     return {
       ...comp,
-      gridX: positionIndex,
-      gridY: deckIndex * 3, // 3 клетки на палубу
+      gridX: isDragging ? dragPosition.x : positionIndex,
+      gridY: isDragging ? dragPosition.y : deckIndex * 3,
       width: 2, // 2 клетки в ширину
       height: 2 // 2 клетки в высоту
     };
@@ -74,6 +78,7 @@ export default function GridCompartmentEditor({
 
   const handleMouseDown = (e: React.MouseEvent, compId: string) => {
     e.stopPropagation();
+    e.preventDefault();
     const comp = draggableCompartments.find(c => c.id === compId);
     if (!comp) return;
 
@@ -91,10 +96,14 @@ export default function GridCompartmentEditor({
       x: mouseX - compX,
       y: mouseY - compY
     });
+    setDragPosition({
+      x: comp.gridX,
+      y: comp.gridY
+    });
     setSelectedCompartment(compId);
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggingCompartment) return;
 
     const svgRect = svgRef.current?.getBoundingClientRect();
@@ -108,29 +117,40 @@ export default function GridCompartmentEditor({
     const newGridY = Math.round((mouseY - dragOffset.y) / gridSize);
 
     // Ограничиваем в пределах сетки
-    const comp = draggableCompartments.find(c => c.id === draggingCompartment);
-    if (!comp) return;
+    const clampedX = Math.max(0, Math.min(newGridX, cols - 2)); // 2 = width
+    const clampedY = Math.max(0, Math.min(newGridY, rows - 2)); // 2 = height
 
-    const clampedX = Math.max(0, Math.min(newGridX, cols - comp.width));
-    const clampedY = Math.max(0, Math.min(newGridY, rows - comp.height));
+    // Обновляем позицию перетаскивания
+    setDragPosition({ x: clampedX, y: clampedY });
+  }, [draggingCompartment, dragOffset, gridSize, cols, rows]);
 
-    // Обновляем позицию отсека
-    const updatedCompartments = compartments.map(c => {
-      if (c.id === draggingCompartment) {
-        return {
-          ...c,
-          positionFromBow: clampedX * 10 // Конвертируем обратно в метры
-        };
-      }
-      return c;
-    });
-
-    onCompartmentsChange(updatedCompartments);
-  };
-
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
+    if (draggingCompartment) {
+      // Сохраняем финальную позицию
+      const updatedCompartments = compartments.map(c => {
+        if (c.id === draggingCompartment) {
+          return {
+            ...c,
+            positionFromBow: dragPosition.x * 10 // Конвертируем в метры
+          };
+        }
+        return c;
+      });
+      onCompartmentsChange(updatedCompartments);
+    }
     setDraggingCompartment(null);
-  };
+  }, [draggingCompartment, dragPosition, compartments, onCompartmentsChange]);
+
+  // Привязываем обработчики к window для надёжности
+  useEffect(() => {
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   const handleSvgClick = (e: React.MouseEvent) => {
     if (e.target === svgRef.current || (e.target as Element).tagName === 'rect') {
@@ -257,10 +277,7 @@ export default function GridCompartmentEditor({
         ref={svgRef}
         width={width}
         height={height}
-        className="border border-slate-600 rounded bg-slate-900/50"
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        className="border border-slate-600 rounded bg-slate-900/50 cursor-default"
         onClick={handleSvgClick}
       >
         {/* СЛОЙ 1: Фоновое изображение */}
