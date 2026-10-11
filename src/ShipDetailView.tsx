@@ -1,11 +1,20 @@
+import { useState } from 'react';
 import { Ship } from './types';
 import ShipSchematic from './ShipSchematic';
+import ImageUploader from './ImageUploader';
+import ShipEditor from './ShipEditor';
+import PresetImage from './PresetImage';
+
+type ViewMode = 'schematic' | 'upload' | 'preset' | 'editor';
 
 interface ShipDetailViewProps {
   ship: Ship | null;
 }
 
 export default function ShipDetailView({ ship }: ShipDetailViewProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('schematic');
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+
   if (!ship) {
     return (
       <div className="w-[498px] h-full bg-slate-800/50 rounded-lg p-3 border border-slate-600 flex flex-col overflow-hidden">
@@ -16,6 +25,21 @@ export default function ShipDetailView({ ship }: ShipDetailViewProps) {
       </div>
     );
   }
+
+  const renderView = () => {
+    switch (viewMode) {
+      case 'schematic':
+        return <ShipSchematic ship={ship} />;
+      case 'upload':
+        return <ImageUploader onImageLoad={setUploadedImage} currentImage={uploadedImage} />;
+      case 'preset':
+        return <PresetImage ship={ship} />;
+      case 'editor':
+        return <ShipEditor compartments={ship.compartments} onCompartmentsChange={() => {}} />;
+      default:
+        return <ShipSchematic ship={ship} />;
+    }
+  };
 
   const allEffects: { name: string; effect: string; severity: 'damaged' | 'destroyed' }[] = [];
   ship.compartments.forEach(comp => {
@@ -48,8 +72,52 @@ export default function ShipDetailView({ ship }: ShipDetailViewProps) {
         </div>
       </div>
 
+      {/* Переключатель режимов */}
+      <div className="flex gap-1 mb-2 bg-slate-900/50 p-1 rounded">
+        <button
+          onClick={() => setViewMode('schematic')}
+          className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
+            viewMode === 'schematic'
+              ? 'bg-cyan-600 text-white'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          📐 Схема
+        </button>
+        <button
+          onClick={() => setViewMode('upload')}
+          className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
+            viewMode === 'upload'
+              ? 'bg-cyan-600 text-white'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          📁 Загрузка
+        </button>
+        <button
+          onClick={() => setViewMode('preset')}
+          className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
+            viewMode === 'preset'
+              ? 'bg-cyan-600 text-white'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          🖼️ Готовое
+        </button>
+        <button
+          onClick={() => setViewMode('editor')}
+          className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
+            viewMode === 'editor'
+              ? 'bg-cyan-600 text-white'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          ✏️ Редактор
+        </button>
+      </div>
+
       <div className="mb-2 flex-shrink-0">
-        <ShipSchematic ship={ship} />
+        {renderView()}
       </div>
 
       <div className="mb-2 p-2 bg-slate-900/50 rounded border border-slate-700 flex-shrink-0">
