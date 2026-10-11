@@ -109,6 +109,12 @@ export interface Ship {
   battleLog: BattleLogEntry[];
   isSunk: boolean;
   sinkCause?: 'flooding' | 'detonation' | 'buoyancy';
+  // Новые характеристики из базы данных
+  length?: number; // длина в метрах
+  beam?: number; // ширина в метрах
+  draft?: number; // осадка в метрах
+  displacementStandard?: number; // стандартное водоизмещение в тоннах
+  displacementFull?: number; // полное водоизмещение в тоннах
 }
 
 export type Heading = 0 | 1 | 2 | 3 | 4 | 5;

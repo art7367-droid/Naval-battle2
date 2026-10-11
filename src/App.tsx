@@ -79,6 +79,12 @@ function App() {
         ship.currentHP = dbShip.maxHP;
         ship.speed = Math.round(dbShip.speed / 10);
         ship.range = dbShip.range;
+        // Передаём новые характеристики
+        ship.length = dbShip.length;
+        ship.beam = dbShip.beam;
+        ship.draft = dbShip.draft;
+        ship.displacementStandard = dbShip.displacementStandard;
+        ship.displacementFull = dbShip.displacementFull;
       }
     });
     
@@ -90,6 +96,12 @@ function App() {
         ship.currentHP = dbShip.maxHP;
         ship.speed = Math.round(dbShip.speed / 10);
         ship.range = dbShip.range;
+        // Передаём новые характеристики
+        ship.length = dbShip.length;
+        ship.beam = dbShip.beam;
+        ship.draft = dbShip.draft;
+        ship.displacementStandard = dbShip.displacementStandard;
+        ship.displacementFull = dbShip.displacementFull;
       }
     });
     

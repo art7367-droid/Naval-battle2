@@ -168,6 +168,48 @@ export default function ShipDetailView({ ship }: ShipDetailViewProps) {
             </span>
           </div>
         </div>
+        {/* Новые характеристики из базы данных */}
+        {(ship.length || ship.displacementFull) && (
+          <>
+            <div className="text-[10px] font-bold text-slate-300 mt-2 mb-1 border-t border-slate-700 pt-1">📏 ГАБАРИТЫ:</div>
+            <div className="grid grid-cols-2 gap-1 text-[9px]">
+              {ship.length && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Длина:</span>
+                  <span className="text-cyan-400">{ship.length} м</span>
+                </div>
+              )}
+              {ship.beam && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Ширина:</span>
+                  <span className="text-cyan-400">{ship.beam} м</span>
+                </div>
+              )}
+              {ship.draft && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Осадка:</span>
+                  <span className="text-cyan-400">{ship.draft} м</span>
+                </div>
+              )}
+            </div>
+            {(ship.displacementStandard || ship.displacementFull) && (
+              <div className="grid grid-cols-2 gap-1 text-[9px] mt-1">
+                {ship.displacementStandard && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Водоизм. станд.:</span>
+                    <span className="text-cyan-400">{ship.displacementStandard.toLocaleString()} т</span>
+                  </div>
+                )}
+                {ship.displacementFull && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Водоизм. полн.:</span>
+                    <span className="text-cyan-400">{ship.displacementFull.toLocaleString()} т</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
         {(ship.stats.flooding > 0 || ship.stats.fires > 0 || ship.stats.list !== 0 || ship.stats.trim !== 0) && (
           <div className="mt-1 pt-1 border-t border-slate-700 grid grid-cols-2 gap-1 text-[9px]">
             {ship.stats.flooding > 0 && (
