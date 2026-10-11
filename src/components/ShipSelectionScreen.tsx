@@ -16,6 +16,58 @@ export default function ShipSelectionScreen({ onStartBattle }: ShipSelectionScre
     setShips(db.ships);
   }, []);
 
+  // Случайный выбор флота: 1 линкор, 1 крейсер, 1 эсминец
+  const randomSelectFleet = (excludeIds: string[] = []): ShipDatabaseEntry[] => {
+    const available = ships.filter(s => !excludeIds.includes(s.id));
+    
+    const battleships = available.filter(s => s.class === 'battleship');
+    const cruisers = available.filter(s => s.class === 'cruiser');
+    const destroyers = available.filter(s => s.class === 'destroyer');
+    
+    const fleet: ShipDatabaseEntry[] = [];
+    
+    // Выбираем 1 линкор
+    if (battleships.length > 0) {
+      fleet.push(battleships[Math.floor(Math.random() * battleships.length)]);
+    }
+    
+    // Выбираем 1 крейсер
+    if (cruisers.length > 0) {
+      fleet.push(cruisers[Math.floor(Math.random() * cruisers.length)]);
+    }
+    
+    // Выбираем 1 эсминец
+    if (destroyers.length > 0) {
+      fleet.push(destroyers[Math.floor(Math.random() * destroyers.length)]);
+    }
+    
+    return fleet;
+  };
+
+  // Автоматический случайный выбор для обеих сторон
+  const handleRandomSelectAll = () => {
+    const playerFleet = randomSelectFleet();
+    const playerIds = playerFleet.map(s => s.id);
+    const enemyFleet = randomSelectFleet(playerIds);
+    
+    setSelectedPlayerShips(playerFleet);
+    setSelectedEnemyShips(enemyFleet);
+  };
+
+  // Случайный выбор только для игрока
+  const handleRandomPlayer = () => {
+    const enemyIds = selectedEnemyShips.map(s => s.id);
+    const playerFleet = randomSelectFleet(enemyIds);
+    setSelectedPlayerShips(playerFleet);
+  };
+
+  // Случайный выбор только для противника
+  const handleRandomEnemy = () => {
+    const playerIds = selectedPlayerShips.map(s => s.id);
+    const enemyFleet = randomSelectFleet(playerIds);
+    setSelectedEnemyShips(enemyFleet);
+  };
+
   const togglePlayerShip = (ship: ShipDatabaseEntry) => {
     if (selectedPlayerShips.find(s => s.id === ship.id)) {
       setSelectedPlayerShips(selectedPlayerShips.filter(s => s.id !== ship.id));
@@ -44,6 +96,30 @@ export default function ShipSelectionScreen({ onStartBattle }: ShipSelectionScre
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 text-white p-4">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-center mb-6 text-cyan-300">⚓ Выбор кораблей для боя</h1>
+
+        {/* Кнопки случайного выбора */}
+        {ships.length > 0 && (
+          <div className="flex justify-center gap-3 mb-6 flex-wrap">
+            <button
+              onClick={handleRandomSelectAll}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg font-semibold text-sm transition-all shadow-lg"
+            >
+              🎲 Случайный выбор (все)
+            </button>
+            <button
+              onClick={handleRandomPlayer}
+              className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 rounded-lg font-semibold text-sm transition-all shadow-lg"
+            >
+              🎲 Случайный (🛡️ Игрок)
+            </button>
+            <button
+              onClick={handleRandomEnemy}
+              className="px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 rounded-lg font-semibold text-sm transition-all shadow-lg"
+            >
+              🎲 Случайный (🎯 Враг)
+            </button>
+          </div>
+        )}
 
         {ships.length === 0 ? (
           <div className="text-center py-12">
