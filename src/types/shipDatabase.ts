@@ -25,6 +25,12 @@ export interface ShipDatabaseEntry {
   schematic?: string;
   photo?: string;
   description?: string;
+  // Новые характеристики
+  length?: number; // длина в метрах
+  beam?: number; // ширина в метрах
+  draft?: number; // осадка в метрах
+  displacementStandard?: number; // стандартное водоизмещение в тоннах
+  displacementFull?: number; // полное водоизмещение в тоннах
   createdAt: number;
   updatedAt: number;
 }

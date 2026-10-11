@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ShipDatabaseEntry } from '../types/shipDatabase';
 import { loadDatabase } from '../utils/shipDatabase';
+import ShipSpecsTable from './ShipSpecsTable';
 
 interface ShipSelectionScreenProps {
   onStartBattle: (playerShips: ShipDatabaseEntry[], enemyShips: ShipDatabaseEntry[]) => void;
@@ -10,6 +11,7 @@ export default function ShipSelectionScreen({ onStartBattle }: ShipSelectionScre
   const [ships, setShips] = useState<ShipDatabaseEntry[]>([]);
   const [selectedPlayerShips, setSelectedPlayerShips] = useState<ShipDatabaseEntry[]>([]);
   const [selectedEnemyShips, setSelectedEnemyShips] = useState<ShipDatabaseEntry[]>([]);
+  const [viewingShip, setViewingShip] = useState<ShipDatabaseEntry | null>(null);
 
   useEffect(() => {
     const db = loadDatabase();
@@ -157,9 +159,20 @@ export default function ShipSelectionScreen({ onStartBattle }: ShipSelectionScre
                       isEnemySelected ? 'bg-red-900/30 border-red-500' :
                       'bg-slate-900/50 border-slate-700 hover:bg-slate-800/50'
                     }`}>
-                      <div className="font-semibold text-sm">{ship.name}</div>
-                      <div className="text-xs text-slate-400">{ship.class} • {ship.country} • {ship.year}</div>
-                      <div className="text-xs text-slate-500 mb-2">HP: {ship.maxHP} | Скорость: {ship.speed} | Дальность: {ship.range}</div>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-semibold text-sm">{ship.name}</div>
+                          <div className="text-xs text-slate-400">{ship.class} • {ship.country} • {ship.year}</div>
+                          <div className="text-xs text-slate-500 mb-2">HP: {ship.maxHP} | Скорость: {ship.speed} | Дальность: {ship.range}</div>
+                        </div>
+                        <button
+                          onClick={() => setViewingShip(ship)}
+                          className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs"
+                          title="Показать ТТХ"
+                        >
+                          📋
+                        </button>
+                      </div>
                       <div className="flex gap-1">
                         <button
                           onClick={() => togglePlayerShip(ship)}
@@ -206,6 +219,24 @@ export default function ShipSelectionScreen({ onStartBattle }: ShipSelectionScre
             ⚔️ Начать бой!
           </button>
         </div>
+
+        {/* Модальное окно с ТТХ */}
+        {viewingShip && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-lg p-4 max-w-md w-full border border-slate-600 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-lg font-bold text-cyan-300">📋 {viewingShip.name}</h3>
+                <button
+                  onClick={() => setViewingShip(null)}
+                  className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-sm"
+                >
+                  ✕ Закрыть
+                </button>
+              </div>
+              <ShipSpecsTable ship={viewingShip} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

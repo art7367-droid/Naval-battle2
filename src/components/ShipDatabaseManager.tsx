@@ -27,6 +27,11 @@ export default function ShipDatabaseManager({ onDatabaseUpdate }: ShipDatabaseMa
     speed: 30,
     range: 10,
     armor: 100,
+    length: 200,
+    beam: 20,
+    draft: 8,
+    displacementStandard: 30000,
+    displacementFull: 40000,
     description: ''
   });
 
@@ -41,6 +46,11 @@ export default function ShipDatabaseManager({ onDatabaseUpdate }: ShipDatabaseMa
     newShip.speed = formData.speed;
     newShip.range = formData.range;
     newShip.armor = formData.armor;
+    newShip.length = formData.length;
+    newShip.beam = formData.beam;
+    newShip.draft = formData.draft;
+    newShip.displacementStandard = formData.displacementStandard;
+    newShip.displacementFull = formData.displacementFull;
     newShip.description = formData.description;
 
     const db = addShipToDatabase(newShip);
@@ -82,6 +92,11 @@ export default function ShipDatabaseManager({ onDatabaseUpdate }: ShipDatabaseMa
       speed: ship.speed,
       range: ship.range,
       armor: ship.armor,
+      length: ship.length || 200,
+      beam: ship.beam || 20,
+      draft: ship.draft || 8,
+      displacementStandard: ship.displacementStandard || 30000,
+      displacementFull: ship.displacementFull || 40000,
       description: ship.description || ''
     });
     setIsEditing(true);
@@ -97,6 +112,11 @@ export default function ShipDatabaseManager({ onDatabaseUpdate }: ShipDatabaseMa
       speed: 30,
       range: 10,
       armor: 100,
+      length: 200,
+      beam: 20,
+      draft: 8,
+      displacementStandard: 30000,
+      displacementFull: 40000,
       description: ''
     });
     setIsEditing(false);
@@ -221,6 +241,38 @@ export default function ShipDatabaseManager({ onDatabaseUpdate }: ShipDatabaseMa
               <div>
                 <label className="text-xs text-slate-400">Броня (мм):</label>
                 <input type="number" value={formData.armor} onChange={(e) => setFormData({ ...formData, armor: parseInt(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" />
+              </div>
+            </div>
+
+            <div className="border-t border-slate-700 pt-2 mt-2">
+              <label className="text-xs text-slate-400 font-semibold">Габариты:</label>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                <div>
+                  <label className="text-xs text-slate-500">Длина (м):</label>
+                  <input type="number" value={formData.length} onChange={(e) => setFormData({ ...formData, length: parseInt(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Ширина (м):</label>
+                  <input type="number" value={formData.beam} onChange={(e) => setFormData({ ...formData, beam: parseInt(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Осадка (м):</label>
+                  <input type="number" value={formData.draft} onChange={(e) => setFormData({ ...formData, draft: parseInt(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-700 pt-2 mt-2">
+              <label className="text-xs text-slate-400 font-semibold">Водоизмещение (т):</label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <div>
+                  <label className="text-xs text-slate-500">Стандартное:</label>
+                  <input type="number" value={formData.displacementStandard} onChange={(e) => setFormData({ ...formData, displacementStandard: parseInt(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">Полное:</label>
+                  <input type="number" value={formData.displacementFull} onChange={(e) => setFormData({ ...formData, displacementFull: parseInt(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm text-white" />
+                </div>
               </div>
             </div>
 
