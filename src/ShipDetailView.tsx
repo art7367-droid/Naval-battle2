@@ -4,8 +4,9 @@ import ShipSchematic from './ShipSchematic';
 import ImageUploader from './ImageUploader';
 import ShipEditor from './ShipEditor';
 import PresetImage from './PresetImage';
+import CompartmentLayerEditor from './CompartmentLayerEditor';
 
-type ViewMode = 'schematic' | 'upload' | 'preset' | 'editor';
+type ViewMode = 'schematic' | 'upload' | 'preset' | 'editor' | 'layerEditor';
 
 interface ShipDetailViewProps {
   ship: Ship | null;
@@ -14,6 +15,7 @@ interface ShipDetailViewProps {
 export default function ShipDetailView({ ship }: ShipDetailViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('schematic');
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
 
   if (!ship) {
     return (
@@ -29,15 +31,25 @@ export default function ShipDetailView({ ship }: ShipDetailViewProps) {
   const renderView = () => {
     switch (viewMode) {
       case 'schematic':
-        return <ShipSchematic ship={ship} />;
+        return <ShipSchematic ship={ship} backgroundImage={backgroundImage} />;
       case 'upload':
         return <ImageUploader onImageLoad={setUploadedImage} currentImage={uploadedImage} />;
       case 'preset':
         return <PresetImage ship={ship} />;
       case 'editor':
         return <ShipEditor compartments={ship.compartments} onCompartmentsChange={() => {}} />;
+      case 'layerEditor':
+        return (
+          <CompartmentLayerEditor
+            ship={ship}
+            backgroundImage={backgroundImage}
+            onBackgroundImageChange={setBackgroundImage}
+            compartments={ship.compartments}
+            onCompartmentsChange={() => {}}
+          />
+        );
       default:
-        return <ShipSchematic ship={ship} />;
+        return <ShipSchematic ship={ship} backgroundImage={backgroundImage} />;
     }
   };
 
@@ -121,6 +133,16 @@ export default function ShipDetailView({ ship }: ShipDetailViewProps) {
           }`}
         >
           ✏️ Редактор
+        </button>
+        <button
+          onClick={() => setViewMode('layerEditor')}
+          className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
+            viewMode === 'layerEditor'
+              ? 'bg-cyan-600 text-white'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          🎨 Слои
         </button>
       </div>
 

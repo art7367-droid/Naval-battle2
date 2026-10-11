@@ -3,9 +3,17 @@ import BattleshipSuperstructure from './BattleshipSuperstructure';
 
 interface ShipSchematicProps {
   ship: Ship;
+  backgroundImage?: string | null; // URL или base64 изображения корабля
+  showCompartments?: boolean; // Показывать ли слой отсеков
+  compartmentOpacity?: number; // Прозрачность слоя отсеков (0-1)
 }
 
-export default function ShipSchematic({ ship }: ShipSchematicProps) {
+export default function ShipSchematic({ 
+  ship, 
+  backgroundImage, 
+  showCompartments = true,
+  compartmentOpacity = 0.6 
+}: ShipSchematicProps) {
   const getCompartmentColor = (comp: Compartment) => {
     switch (comp.status) {
       case 'destroyed': return '#dc2626';
@@ -43,6 +51,21 @@ export default function ShipSchematic({ ship }: ShipSchematicProps) {
 
     return (
       <svg width={width} height={height} className="border border-slate-600 rounded bg-slate-900/50">
+        {/* СЛОЙ 1: Фоновое изображение корабля (нижний слой) */}
+        {backgroundImage && (
+          <image
+            href={backgroundImage}
+            x={padding}
+            y={20}
+            width={availableWidth}
+            height={height - 40}
+            preserveAspectRatio="xMidYMid meet"
+            opacity={0.8}
+          />
+        )}
+        
+        {/* СЛОЙ 2: Полупрозрачные отсеки (верхний слой) */}
+        <g opacity={showCompartments ? compartmentOpacity : 0}>
         <text x="10" y="15" fill="#94a3b8" fontSize="10" fontWeight="bold">
           ВИД СБОКУ - {ship.name} ({shipLength}м, {numCompartments} отсеков)
         </text>
@@ -169,6 +192,7 @@ export default function ShipSchematic({ ship }: ShipSchematicProps) {
         {/* Метки носа и кормы */}
         <text x={padding} y={height - 5} fill="#94a3b8" fontSize="8" textAnchor="middle">НОС</text>
         <text x={width - padding} y={height - 5} fill="#94a3b8" fontSize="8" textAnchor="middle">КОРМА</text>
+        </g> {/* Закрываем слой отсеков */}
       </svg>
     );
   };
