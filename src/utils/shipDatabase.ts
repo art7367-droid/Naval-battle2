@@ -230,6 +230,23 @@ export function loadDatabase(): ShipDatabase {
         saveDatabase(defaultDb);
         return defaultDb;
       }
+      
+      // Проверяем, есть ли новые поля (миграция)
+      const needsMigration = db.ships.some((ship: ShipDatabaseEntry) => 
+        ship.length === undefined || 
+        ship.beam === undefined || 
+        ship.draft === undefined ||
+        ship.displacementStandard === undefined ||
+        ship.displacementFull === undefined
+      );
+      
+      if (needsMigration) {
+        console.log('Обнаружены старые данные. Пересоздание базы данных с новыми характеристиками...');
+        const defaultDb = createDefaultDatabase();
+        saveDatabase(defaultDb);
+        return defaultDb;
+      }
+      
       return db;
     }
   } catch (error) {
