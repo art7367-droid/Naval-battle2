@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Ship, Compartment, CompartmentDeck, CompartmentPosition } from './types';
+import { Ship, Compartment, CompartmentDeck, CompartmentPosition as CompartmentPositionType } from './types';
 
 interface GridCompartmentEditorProps {
   ship: Ship;
@@ -14,11 +14,9 @@ interface GridPosition {
   y: number;
 }
 
-interface DraggableCompartment extends Compartment {
+interface CompartmentGridPosition {
   gridX: number;
   gridY: number;
-  width: number; // в клетках сетки
-  height: number; // в клетках сетки
 }
 
 export default function GridCompartmentEditor({
@@ -35,34 +33,33 @@ export default function GridCompartmentEditor({
   const [compartmentOpacity, setCompartmentOpacity] = useState(0.7);
   const [showGrid, setShowGrid] = useState(true);
   const [showCompartments, setShowCompartments] = useState(true);
+  
+  // Позиция фонового изображения
+  const [backgroundPosition, setBackgroundPosition] = useState<GridPosition>({ x: 0, y: 0 });
+  const [draggingBackground, setDraggingBackground] = useState(false);
+  const [backgroundDragOffset, setBackgroundDragOffset] = useState<GridPosition>({ x: 0, y: 0 });
+  
+  // Позиции отсеков в сетке (1 отсек = 1 клетка)
+  const [compartmentPositions, setCompartmentPositions] = useState<Map<string, CompartmentGridPosition>>(() => {
+    const map = new Map<string, CompartmentGridPosition>();
+    compartments.forEach((comp, idx) => {
+      const deckIndex = comp.deck === 'upper' ? 0 : comp.deck === 'middle' ? 1 : 2;
+      const positionIndex = comp.positionFromBow ? Math.floor(comp.positionFromBow / 10) : idx % 20;
+      map.set(comp.id, { gridX: positionIndex, gridY: deckIndex * 3 });
+    });
+    return map;
+  });
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   // Параметры сетки
-  const gridSize = 10; // Размер клетки в пикселях
+  const gridSize = 10;
   const width = 500;
   const height = 250;
   const padding = 10;
   const cols = Math.floor((width - padding * 2) / gridSize);
   const rows = Math.floor((height - padding * 2) / gridSize);
-
-  // Конвертируем отсеки в перетаскиваемые объекты с учётом текущей позиции перетаскивания
-  const draggableCompartments: DraggableCompartment[] = compartments.map((comp, idx) => {
-    // Начальная позиция на основе палубы и позиции
-    const deckIndex = comp.deck === 'upper' ? 0 : comp.deck === 'middle' ? 1 : 2;
-    const positionIndex = comp.positionFromBow ? Math.floor(comp.positionFromBow / 10) : idx % 20;
-    
-    // Если этот отсек перетаскивается, используем текущую позицию перетаскивания
-    const isDragging = draggingCompartment === comp.id;
-    
-    return {
-      ...comp,
-      gridX: isDragging ? dragPosition.x : positionIndex,
-      gridY: isDragging ? dragPosition.y : deckIndex * 3,
-      width: 2, // 2 клетки в ширину
-      height: 2 // 2 клетки в высоту
-    };
-  });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -76,11 +73,31 @@ export default function GridCompartmentEditor({
     }
   };
 
+  // Обработчики для перетаскивания фона
+  const handleBackgroundMouseDown = (e: React.MouseEvent) => {
+    if (!backgroundImage) return;
+    e.preventDefault();
+    
+    const svgRect = svgRef.current?.getBoundingClientRect();
+    if (!svgRect) return;
+
+    const mouseX = e.clientX - svgRect.left;
+    const mouseY = e.clientY - svgRect.top;
+
+    setDraggingBackground(true);
+    setBackgroundDragOffset({
+      x: mouseX - backgroundPosition.x,
+      y: mouseY - backgroundPosition.y
+    });
+  };
+
+  // Обработчики для перетаскивания отсеков
   const handleMouseDown = (e: React.MouseEvent, compId: string) => {
     e.stopPropagation();
     e.preventDefault();
-    const comp = draggableCompartments.find(c => c.id === compId);
-    if (!comp) return;
+    
+    const pos = compartmentPositions.get(compId);
+    if (!pos) return;
 
     const svgRect = svgRef.current?.getBoundingClientRect();
     if (!svgRect) return;
@@ -88,8 +105,8 @@ export default function GridCompartmentEditor({
     const mouseX = e.clientX - svgRect.left - padding;
     const mouseY = e.clientY - svgRect.top - padding;
     
-    const compX = comp.gridX * gridSize;
-    const compY = comp.gridY * gridSize;
+    const compX = pos.gridX * gridSize;
+    const compY = pos.gridY * gridSize;
 
     setDraggingCompartment(compId);
     setDragOffset({
@@ -97,51 +114,66 @@ export default function GridCompartmentEditor({
       y: mouseY - compY
     });
     setDragPosition({
-      x: comp.gridX,
-      y: comp.gridY
+      x: pos.gridX,
+      y: pos.gridY
     });
     setSelectedCompartment(compId);
   };
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!draggingCompartment) return;
-
     const svgRect = svgRef.current?.getBoundingClientRect();
     if (!svgRect) return;
 
-    const mouseX = e.clientX - svgRect.left - padding;
-    const mouseY = e.clientY - svgRect.top - padding;
+    const mouseX = e.clientX - svgRect.left;
+    const mouseY = e.clientY - svgRect.top;
 
-    // Вычисляем новую позицию с привязкой к сетке
-    const newGridX = Math.round((mouseX - dragOffset.x) / gridSize);
-    const newGridY = Math.round((mouseY - dragOffset.y) / gridSize);
+    if (draggingBackground) {
+      // Перетаскивание фона
+      const newX = mouseX - backgroundDragOffset.x;
+      const newY = mouseY - backgroundDragOffset.y;
+      setBackgroundPosition({ x: newX, y: newY });
+    } else if (draggingCompartment) {
+      // Перетаскивание отсека
+      const relX = mouseX - padding;
+      const relY = mouseY - padding;
 
-    // Ограничиваем в пределах сетки
-    const clampedX = Math.max(0, Math.min(newGridX, cols - 2)); // 2 = width
-    const clampedY = Math.max(0, Math.min(newGridY, rows - 2)); // 2 = height
+      const newGridX = Math.round((relX - dragOffset.x) / gridSize);
+      const newGridY = Math.round((relY - dragOffset.y) / gridSize);
 
-    // Обновляем позицию перетаскивания
-    setDragPosition({ x: clampedX, y: clampedY });
-  }, [draggingCompartment, dragOffset, gridSize, cols, rows]);
+      const clampedX = Math.max(0, Math.min(newGridX, cols - 1));
+      const clampedY = Math.max(0, Math.min(newGridY, rows - 1));
+
+      setDragPosition({ x: clampedX, y: clampedY });
+    }
+  }, [draggingBackground, draggingCompartment, backgroundDragOffset, dragOffset, gridSize, cols, rows]);
 
   const handleMouseUp = useCallback(() => {
     if (draggingCompartment) {
-      // Сохраняем финальную позицию
+      // Сохраняем позицию отсека в Map
+      const newPositions = new Map(compartmentPositions);
+      newPositions.set(draggingCompartment, {
+        gridX: dragPosition.x,
+        gridY: dragPosition.y
+      });
+      setCompartmentPositions(newPositions);
+      
+      // Обновляем compartments с новой позицией
       const updatedCompartments = compartments.map(c => {
         if (c.id === draggingCompartment) {
           return {
             ...c,
-            positionFromBow: dragPosition.x * 10 // Конвертируем в метры
+            positionFromBow: dragPosition.x * 10
           };
         }
         return c;
       });
       onCompartmentsChange(updatedCompartments);
     }
+    
     setDraggingCompartment(null);
-  }, [draggingCompartment, dragPosition, compartments, onCompartmentsChange]);
+    setDraggingBackground(false);
+  }, [draggingCompartment, draggingBackground, dragPosition, compartmentPositions, compartments, onCompartmentsChange]);
 
-  // Привязываем обработчики к window для надёжности
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -178,11 +210,19 @@ export default function GridCompartmentEditor({
       positionFromBow: 0
     };
 
+    const newPositions = new Map(compartmentPositions);
+    newPositions.set(newCompartment.id, { gridX: 0, gridY: 0 });
+    setCompartmentPositions(newPositions);
+    
     onCompartmentsChange([...compartments, newCompartment]);
     setSelectedCompartment(newCompartment.id);
   };
 
   const deleteCompartment = (id: string) => {
+    const newPositions = new Map(compartmentPositions);
+    newPositions.delete(id);
+    setCompartmentPositions(newPositions);
+    
     onCompartmentsChange(compartments.filter(c => c.id !== id));
     if (selectedCompartment === id) {
       setSelectedCompartment(null);
@@ -217,12 +257,20 @@ export default function GridCompartmentEditor({
           📁 Загрузить изображение
         </button>
         {backgroundImage && (
-          <button
-            onClick={() => onBackgroundImageChange(null)}
-            className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs"
-          >
-            ✕ Удалить изображение
-          </button>
+          <>
+            <button
+              onClick={() => onBackgroundImageChange(null)}
+              className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs"
+            >
+              ✕ Удалить изображение
+            </button>
+            <button
+              onClick={() => setBackgroundPosition({ x: 0, y: 0 })}
+              className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-xs"
+            >
+              🎯 Сбросить позицию фона
+            </button>
+          </>
         )}
         <button
           onClick={addCompartment}
@@ -279,24 +327,25 @@ export default function GridCompartmentEditor({
         height={height}
         className="border border-slate-600 rounded bg-slate-900/50 cursor-default"
         onClick={handleSvgClick}
+        onMouseDown={handleBackgroundMouseDown}
       >
-        {/* СЛОЙ 1: Фоновое изображение */}
+        {/* СЛОЙ 1: Фоновое изображение (перетаскиваемое) */}
         {backgroundImage && (
           <image
             href={backgroundImage}
-            x={padding}
-            y={padding}
-            width={width - padding * 2}
-            height={height - padding * 2}
+            x={backgroundPosition.x}
+            y={backgroundPosition.y}
+            width={width}
+            height={height}
             preserveAspectRatio="xMidYMid meet"
             opacity={0.8}
+            className="cursor-move"
           />
         )}
 
         {/* СЕТКА */}
         {showGrid && (
           <g opacity={0.3}>
-            {/* Вертикальные линии */}
             {Array.from({ length: cols + 1 }).map((_, i) => (
               <line
                 key={`v-${i}`}
@@ -308,7 +357,6 @@ export default function GridCompartmentEditor({
                 strokeWidth="0.5"
               />
             ))}
-            {/* Горизонтальные линии */}
             {Array.from({ length: rows + 1 }).map((_, i) => (
               <line
                 key={`h-${i}`}
@@ -323,11 +371,17 @@ export default function GridCompartmentEditor({
           </g>
         )}
 
-        {/* СЛОЙ 2: Отсеки (перетаскиваемые) */}
-        {showCompartments && draggableCompartments.map((comp) => {
+        {/* СЛОЙ 2: Отсеки (1 клетка = 1 отсек) */}
+        {showCompartments && compartments.map((comp) => {
+          const pos = compartmentPositions.get(comp.id);
+          if (!pos) return null;
+          
           const isSelected = selectedCompartment === comp.id;
           const isDragging = draggingCompartment === comp.id;
           const color = getCompartmentColor(comp);
+          
+          const displayX = isDragging ? dragPosition.x : pos.gridX;
+          const displayY = isDragging ? dragPosition.y : pos.gridY;
 
           return (
             <g
@@ -336,10 +390,10 @@ export default function GridCompartmentEditor({
               className="cursor-move"
             >
               <rect
-                x={padding + comp.gridX * gridSize}
-                y={padding + comp.gridY * gridSize}
-                width={comp.width * gridSize}
-                height={comp.height * gridSize}
+                x={padding + displayX * gridSize}
+                y={padding + displayY * gridSize}
+                width={gridSize}
+                height={gridSize}
                 fill={color}
                 opacity={compartmentOpacity}
                 stroke={isSelected ? '#fbbf24' : isDragging ? '#06b6d4' : '#475569'}
@@ -347,24 +401,26 @@ export default function GridCompartmentEditor({
               />
               {comp.flooded > 0 && (
                 <text
-                  x={padding + comp.gridX * gridSize + (comp.width * gridSize) / 2}
-                  y={padding + comp.gridY * gridSize + (comp.height * gridSize) / 2}
+                  x={padding + displayX * gridSize + gridSize / 2}
+                  y={padding + displayY * gridSize + gridSize / 2}
                   fill="#60a5fa"
-                  fontSize="8"
+                  fontSize="6"
                   textAnchor="middle"
                   dominantBaseline="middle"
+                  pointerEvents="none"
                 >
                   💧
                 </text>
               )}
               {comp.fire > 0 && (
                 <text
-                  x={padding + comp.gridX * gridSize + (comp.width * gridSize) / 2 + 5}
-                  y={padding + comp.gridY * gridSize + (comp.height * gridSize) / 2}
+                  x={padding + displayX * gridSize + gridSize / 2}
+                  y={padding + displayY * gridSize + gridSize / 2}
                   fill="#f97316"
-                  fontSize="8"
+                  fontSize="6"
                   textAnchor="middle"
                   dominantBaseline="middle"
+                  pointerEvents="none"
                 >
                   🔥
                 </text>
@@ -406,7 +462,7 @@ export default function GridCompartmentEditor({
                     <label className="text-[10px] text-slate-400">Позиция:</label>
                     <select
                       value={comp.position}
-                      onChange={(e) => updateCompartment(comp.id, { position: e.target.value as CompartmentPosition })}
+                      onChange={(e) => updateCompartment(comp.id, { position: e.target.value as CompartmentPositionType })}
                       className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
                     >
                       <option value="bow">Нос</option>
