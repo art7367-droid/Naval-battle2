@@ -1,4 +1,4 @@
-import { Ship, ShipType, SHIP_FLEET, Shot, BOARD_SIZE, Heading, HexCell } from './types';
+import { Ship, ShipType, SHIP_FLEET, Shot, BOARD_SIZE, Heading, HexCell, createCompartments, calculateShipStats } from './types';
 
 export { BOARD_SIZE };
 
@@ -62,12 +62,16 @@ export function generatePlayerShips(): Ship[] {
       const r = Math.floor(Math.random() * BOARD_SIZE);
       const occupied = ships.some(s => s.q === q && s.r === r);
       if (!occupied) {
+        const compartments = createCompartments(shipDef.type);
+        const stats = calculateShipStats(compartments);
+        const totalHP = compartments.reduce((sum, c) => sum + c.maxHP, 0);
+        
         ships.push({
           id: shipId++,
           type: shipDef.type,
           name: shipDef.name,
-          maxHP: shipDef.hp,
-          currentHP: shipDef.hp,
+          maxHP: totalHP,
+          currentHP: totalHP,
           q, r,
           heading: 0,
           accuracy: shipDef.accuracy,
@@ -76,6 +80,8 @@ export function generatePlayerShips(): Ship[] {
           range: shipDef.range,
           hasMoved: false,
           hasFired: false,
+          compartments,
+          stats,
         });
         placed = true;
       }
@@ -113,12 +119,16 @@ export function generateEnemyShips(): Ship[] {
       const r = Math.floor(Math.random() * BOARD_SIZE);
       const occupied = ships.some(s => s.q === q && s.r === r);
       if (!occupied) {
+        const compartments = createCompartments(shipDef.type);
+        const stats = calculateShipStats(compartments);
+        const totalHP = compartments.reduce((sum, c) => sum + c.maxHP, 0);
+        
         ships.push({
           id: shipId++,
           type: shipDef.type,
           name: shipDef.name,
-          maxHP: shipDef.hp,
-          currentHP: shipDef.hp,
+          maxHP: totalHP,
+          currentHP: totalHP,
           q, r,
           heading: 3,
           accuracy: shipDef.accuracy,
@@ -127,6 +137,8 @@ export function generateEnemyShips(): Ship[] {
           range: shipDef.range,
           hasMoved: false,
           hasFired: false,
+          compartments,
+          stats,
         });
         placed = true;
       }
@@ -170,10 +182,89 @@ export function executeShots(
 
     if (hit && targetShip) {
       newShips = newShips.map(ship => {
-        if (ship.id === targetShip.id) {
-          return { ...ship, currentHP: Math.max(0, ship.currentHP - attacker.damage) };
+        if (ship.id !== targetShip.id) return ship;
+
+        const updatedShip = { ...ship, compartments: ship.compartments.map(c => ({ ...c, components: c.components.map(comp => ({ ...comp })) })) };
+
+        // Выбираем случайный отсек для повреждения
+        const availableCompartments = updatedShip.compartments.filter(c => c.status !== 'destroyed');
+        if (availableCompartments.length === 0) return ship;
+
+        const targetCompartment = availableCompartments[Math.floor(Math.random() * availableCompartments.length)];
+        const compIndex = updatedShip.compartments.findIndex(c => c.id === targetCompartment.id);
+        
+        if (compIndex === -1) return ship;
+
+        const updatedCompartment = { ...updatedShip.compartments[compIndex] };
+
+        // Пробитие брони
+        const penetration = attacker.damage;
+        const armor = updatedCompartment.armor;
+        let effectiveDamage = attacker.damage;
+        
+        if (penetration < armor * 0.5) {
+          effectiveDamage = Math.floor(attacker.damage * 0.1);
+        } else if (penetration < armor) {
+          effectiveDamage = Math.floor(attacker.damage * 0.5);
         }
-        return ship;
+
+        // Урон отсеку
+        const compartmentDamage = Math.floor(effectiveDamage * 0.6);
+        updatedCompartment.currentHP = Math.max(0, updatedCompartment.currentHP - compartmentDamage);
+
+        if (updatedCompartment.currentHP <= 0) {
+          updatedCompartment.status = 'destroyed';
+        } else if (updatedCompartment.currentHP < updatedCompartment.maxHP * 0.5) {
+          updatedCompartment.status = 'damaged';
+        }
+
+        // Затопление
+        if (updatedCompartment.watertight && updatedCompartment.currentHP < updatedCompartment.maxHP * 0.3) {
+          updatedCompartment.flooded = Math.min(1.0, updatedCompartment.flooded + 0.3);
+        }
+
+        // Пожары
+        if (updatedCompartment.currentHP < updatedCompartment.maxHP * 0.5) {
+          const hasFuelOrAmmo = updatedCompartment.components.some(
+            c => c.type === 'fuel_tank' || c.type === 'ammo_magazine'
+          );
+          if (hasFuelOrAmmo && Math.random() < 0.4) {
+            updatedCompartment.fire = Math.min(1.0, updatedCompartment.fire + 0.3);
+          }
+        }
+
+        // Урон компонентам
+        const componentDamagePool = Math.floor(effectiveDamage * 0.4);
+        
+        if (updatedCompartment.components.length > 0 && componentDamagePool > 0) {
+          updatedCompartment.components = updatedCompartment.components.map(component => {
+            const damageToCompartment = updatedCompartment.maxHP - updatedCompartment.currentHP;
+            const damageProbability = (damageToCompartment / updatedCompartment.maxHP) * component.vulnerability;
+            
+            if (Math.random() < damageProbability) {
+              const updatedComponent = { ...component };
+              const componentDamage = Math.floor(componentDamagePool / updatedCompartment.components.length);
+              updatedComponent.currentHP = Math.max(0, updatedComponent.currentHP - componentDamage);
+              
+              if (updatedComponent.currentHP <= 0) {
+                updatedComponent.status = 'destroyed';
+              } else if (updatedComponent.currentHP < updatedComponent.maxHP * 0.5) {
+                updatedComponent.status = 'damaged';
+              }
+              
+              return updatedComponent;
+            }
+            return component;
+          });
+        }
+
+        updatedShip.compartments[compIndex] = updatedCompartment;
+        updatedShip.stats = calculateShipStats(updatedShip.compartments);
+
+        const totalCurrentHP = updatedShip.compartments.reduce((sum, c) => sum + c.currentHP, 0);
+        updatedShip.currentHP = totalCurrentHP;
+
+        return updatedShip;
       });
 
       executedShots.push({

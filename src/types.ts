@@ -11,6 +11,65 @@ export interface HexCell {
   currentHP: number | null;
 }
 
+// Позиция отсека на корабле
+export type CompartmentPosition = 'bow' | 'forward' | 'mid' | 'aft' | 'stern';
+export type CompartmentDeck = 'upper' | 'middle' | 'lower' | 'bottom';
+export type CompartmentSide = 'port' | 'center' | 'starboard';
+
+// Состояние отсека
+export type CompartmentStatus = 'intact' | 'damaged' | 'flooded' | 'destroyed';
+
+// Тип компонента
+export type ComponentType = 
+  | 'bridge' | 'forward_turret' | 'aft_turret' | 'engine' | 'boiler'
+  | 'rudder' | 'propeller' | 'radar' | 'torpedo_tube' | 'ammo_magazine'
+  | 'fuel_tank' | 'generator' | 'pump' | 'aa_gun' | 'fire_control';
+
+// Состояние компонента
+export type ComponentStatus = 'operational' | 'damaged' | 'destroyed';
+
+// Компонент (функциональный узел)
+export interface Component {
+  type: ComponentType;
+  name: string;
+  maxHP: number;
+  currentHP: number;
+  status: ComponentStatus;
+  vulnerability: number;
+  effect: string;
+}
+
+// Отсек (физический объём)
+export interface Compartment {
+  id: string;
+  position: CompartmentPosition;
+  deck: CompartmentDeck;
+  side: CompartmentSide;
+  name: string;
+  maxHP: number;
+  currentHP: number;
+  status: CompartmentStatus;
+  watertight: boolean;
+  armor: number;
+  flooded: number;
+  fire: number;
+  components: Component[];
+}
+
+// Агрегированные характеристики корабля
+export interface ShipStats {
+  speed: number;
+  maneuverability: number;
+  mainGunFire: number;
+  aaFire: number;
+  detection: number;
+  buoyancy: number;
+  list: number;
+  trim: number;
+  fires: number;
+  flooding: number;
+}
+
 export interface Ship {
   id: number;
   type: ShipType;
@@ -26,6 +85,8 @@ export interface Ship {
   range: number;
   hasMoved: boolean;
   hasFired: boolean;
+  compartments: Compartment[];
+  stats: ShipStats;
 }
 
 export type Heading = 0 | 1 | 2 | 3 | 4 | 5;
@@ -57,3 +118,261 @@ export const SHIP_FLEET = [
 
 export const TOTAL_SHIPS = SHIP_FLEET.reduce((sum, s) => sum + s.count, 0);
 export const BOARD_SIZE = 25;
+
+// Создание компонентов для отсека
+function createComponentsForCompartment(
+  position: CompartmentPosition,
+  deck: CompartmentDeck,
+  shipType: ShipType
+): Component[] {
+  const components: Component[] = [];
+
+  if (deck === 'upper' && (position === 'forward' || position === 'mid')) {
+    components.push({
+      type: 'bridge', name: 'Мостик', maxHP: 20, currentHP: 20,
+      status: 'operational', vulnerability: 0.8, effect: 'Снижает управляемость на 50%'
+    });
+  }
+
+  if (deck === 'upper' && position === 'mid') {
+    components.push({
+      type: 'fire_control', name: 'КДП', maxHP: 15, currentHP: 15,
+      status: 'operational', vulnerability: 0.7, effect: 'Снижает точность огня на 40%'
+    });
+  }
+
+  if (position === 'forward' && deck === 'upper') {
+    components.push({
+      type: 'forward_turret', name: 'Носовая башня ГК', maxHP: 30, currentHP: 30,
+      status: 'operational', vulnerability: 0.6, effect: 'Снижает огонь ГК на 50%'
+    });
+  }
+  if (position === 'aft' && deck === 'upper') {
+    components.push({
+      type: 'aft_turret', name: 'Кормовая башня ГК', maxHP: 30, currentHP: 30,
+      status: 'operational', vulnerability: 0.6, effect: 'Снижает огонь ГК на 50%'
+    });
+  }
+
+  if ((deck === 'middle' || deck === 'lower') && position === 'aft') {
+    components.push({
+      type: 'engine', name: 'Двигатель', maxHP: 40, currentHP: 40,
+      status: 'operational', vulnerability: 0.5, effect: 'Снижает скорость на 50%'
+    });
+  }
+
+  if (deck === 'middle' && position === 'mid') {
+    components.push({
+      type: 'boiler', name: 'Котёл', maxHP: 35, currentHP: 35,
+      status: 'operational', vulnerability: 0.5, effect: 'Снижает скорость на 30%'
+    });
+  }
+
+  if (position === 'stern' && deck === 'lower') {
+    components.push({
+      type: 'rudder', name: 'Руль', maxHP: 25, currentHP: 25,
+      status: 'operational', vulnerability: 0.9, effect: 'Снижает управляемость на 70%'
+    });
+  }
+
+  if (position === 'stern' && deck === 'bottom') {
+    components.push({
+      type: 'propeller', name: 'Винты', maxHP: 30, currentHP: 30,
+      status: 'operational', vulnerability: 0.7, effect: 'Снижает скорость на 40%'
+    });
+  }
+
+  if (deck === 'upper' && position === 'mid' && shipType !== 'destroyer') {
+    components.push({
+      type: 'radar', name: 'Радар', maxHP: 15, currentHP: 15,
+      status: 'operational', vulnerability: 0.8, effect: 'Снижает дальность обнаружения'
+    });
+  }
+
+  if (shipType !== 'battleship' && position === 'mid' && deck === 'upper') {
+    components.push({
+      type: 'torpedo_tube', name: 'Торпедный аппарат', maxHP: 20, currentHP: 20,
+      status: 'operational', vulnerability: 0.6, effect: 'Отключает торпедное вооружение'
+    });
+  }
+
+  if (deck === 'lower' && (position === 'forward' || position === 'aft')) {
+    components.push({
+      type: 'ammo_magazine', name: 'Погреб боеприпасов', maxHP: 25, currentHP: 25,
+      status: 'operational', vulnerability: 0.95, effect: 'Риск детонации при уничтожении'
+    });
+  }
+
+  if (deck === 'lower' && position === 'mid') {
+    components.push({
+      type: 'fuel_tank', name: 'Топливный бак', maxHP: 20, currentHP: 20,
+      status: 'operational', vulnerability: 0.85, effect: 'Риск пожара при повреждении'
+    });
+  }
+
+  if (deck === 'middle' && position === 'mid') {
+    components.push({
+      type: 'generator', name: 'Генератор', maxHP: 20, currentHP: 20,
+      status: 'operational', vulnerability: 0.6, effect: 'Снижает эффективность радаров и ПВО'
+    });
+    components.push({
+      type: 'pump', name: 'Насос', maxHP: 15, currentHP: 15,
+      status: 'operational', vulnerability: 0.7, effect: 'Затрудняет откачку воды'
+    });
+  }
+
+  if (deck === 'upper' && position === 'mid' && shipType !== 'destroyer') {
+    components.push({
+      type: 'aa_gun', name: 'Зенитное орудие', maxHP: 15, currentHP: 15,
+      status: 'operational', vulnerability: 0.7, effect: 'Снижает ПВО'
+    });
+  }
+
+  return components;
+}
+
+// Создание отсеков для корабля
+export function createCompartments(shipType: ShipType): Compartment[] {
+  const compartments: Compartment[] = [];
+  const positions: CompartmentPosition[] = ['bow', 'forward', 'mid', 'aft', 'stern'];
+  const decks: CompartmentDeck[] = ['upper', 'middle', 'lower', 'bottom'];
+  const sides: CompartmentSide[] = ['port', 'center', 'starboard'];
+
+  let compartmentId = 1;
+
+  for (const position of positions) {
+    for (const deck of decks) {
+      if (position === 'bow' && (deck === 'lower' || deck === 'bottom')) continue;
+      if (position === 'stern' && deck === 'upper') continue;
+
+      for (const side of sides) {
+        if (position === 'mid' && side !== 'center') continue;
+        if (position !== 'mid' && side === 'center') continue;
+
+        const id = `comp_${compartmentId++}`;
+        const baseHP = shipType === 'battleship' ? 25 : shipType === 'cruiser' ? 20 : 15;
+        
+        let armor = 50;
+        if (shipType === 'battleship') {
+          armor = deck === 'upper' ? 100 : deck === 'middle' ? 150 : 200;
+        } else if (shipType === 'cruiser') {
+          armor = deck === 'upper' ? 75 : deck === 'middle' ? 100 : 125;
+        } else {
+          armor = deck === 'upper' ? 25 : deck === 'middle' ? 50 : 75;
+        }
+
+        compartments.push({
+          id,
+          position,
+          deck,
+          side,
+          name: `${getPositionName(position)} - ${getDeckName(deck)}`,
+          maxHP: baseHP,
+          currentHP: baseHP,
+          status: 'intact',
+          watertight: deck !== 'upper',
+          armor,
+          flooded: 0.0,
+          fire: 0.0,
+          components: createComponentsForCompartment(position, deck, shipType)
+        });
+      }
+    }
+  }
+
+  return compartments;
+}
+
+function getPositionName(pos: CompartmentPosition): string {
+  switch (pos) {
+    case 'bow': return 'Нос';
+    case 'forward': return 'Носовая часть';
+    case 'mid': return 'Центр';
+    case 'aft': return 'Кормовая часть';
+    case 'stern': return 'Корма';
+  }
+}
+
+function getDeckName(deck: CompartmentDeck): string {
+  switch (deck) {
+    case 'upper': return 'Верхняя палуба';
+    case 'middle': return 'Средняя палуба';
+    case 'lower': return 'Нижняя палуба';
+    case 'bottom': return 'Двойное дно';
+  }
+}
+
+// Расчёт агрегированных характеристик корабля
+export function calculateShipStats(compartments: Compartment[]): ShipStats {
+  const stats: ShipStats = {
+    speed: 1.0,
+    maneuverability: 1.0,
+    mainGunFire: 1.0,
+    aaFire: 1.0,
+    detection: 1.0,
+    buoyancy: 1.0,
+    list: 0.0,
+    trim: 0.0,
+    fires: 0,
+    flooding: 0.0
+  };
+
+  let totalFlooded = 0;
+  let totalCompartments = 0;
+  let portFlooded = 0;
+  let starboardFlooded = 0;
+  let bowFlooded = 0;
+  let sternFlooded = 0;
+
+  compartments.forEach(comp => {
+    totalCompartments++;
+    
+    if (comp.flooded > 0) {
+      totalFlooded += comp.flooded;
+      if (comp.side === 'port') portFlooded += comp.flooded;
+      if (comp.side === 'starboard') starboardFlooded += comp.flooded;
+      if (comp.position === 'bow' || comp.position === 'forward') bowFlooded += comp.flooded;
+      if (comp.position === 'stern' || comp.position === 'aft') sternFlooded += comp.flooded;
+    }
+
+    if (comp.fire > 0) {
+      stats.fires++;
+    }
+
+    comp.components.forEach(component => {
+      const effectiveness = component.currentHP / component.maxHP;
+      
+      switch (component.type) {
+        case 'engine':
+        case 'boiler':
+        case 'propeller':
+          stats.speed *= (0.5 + effectiveness * 0.5);
+          break;
+        case 'rudder':
+        case 'bridge':
+          stats.maneuverability *= (0.3 + effectiveness * 0.7);
+          break;
+        case 'forward_turret':
+        case 'aft_turret':
+        case 'fire_control':
+          stats.mainGunFire *= (0.4 + effectiveness * 0.6);
+          break;
+        case 'aa_gun':
+          stats.aaFire *= (0.4 + effectiveness * 0.6);
+          break;
+        case 'radar':
+          stats.detection *= (0.5 + effectiveness * 0.5);
+          break;
+      }
+    });
+  });
+
+  if (totalCompartments > 0) {
+    stats.flooding = totalFlooded / totalCompartments;
+    stats.buoyancy = Math.max(0, 1.0 - stats.flooding * 0.8);
+    stats.list = (starboardFlooded - portFlooded) / totalCompartments;
+    stats.trim = (sternFlooded - bowFlooded) / totalCompartments;
+  }
+
+  return stats;
+}
