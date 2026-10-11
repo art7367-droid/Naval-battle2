@@ -25,12 +25,39 @@ export function hexDistance(q1: number, r1: number, q2: number, r2: number): num
 }
 
 export function getHeading(fromQ: number, fromR: number, toQ: number, toR: number): Heading {
-  const dq = toQ - fromQ;
-  const dr = toR - fromR;
-  const angle = Math.atan2(dr, dq) * 180 / Math.PI;
-  let normalizedAngle = angle < 0 ? angle + 360 : angle;
-  const sector = Math.floor(normalizedAngle / 60) % 6;
-  return sector as Heading;
+  // Конвертируем в cube coordinates
+  const fromCube = offsetToCube(fromQ, fromR);
+  const toCube = offsetToCube(toQ, toR);
+  
+  const dx = toCube.x - fromCube.x;
+  const dy = toCube.y - fromCube.y;
+  const dz = toCube.z - fromCube.z;
+  
+  // 6 направлений в cube coordinates для pointy-top гексов
+  const directions = [
+    { dx: 1, dy: -1, dz: 0 },   // 0: E (вправо)
+    { dx: 0, dy: -1, dz: 1 },   // 1: SE (вниз-вправо)
+    { dx: -1, dy: 0, dz: 1 },   // 2: SW (вниз-влево)
+    { dx: -1, dy: 1, dz: 0 },   // 3: W (влево)
+    { dx: 0, dy: 1, dz: -1 },   // 4: NW (вверх-влево)
+    { dx: 1, dy: 0, dz: -1 },   // 5: NE (вверх-вправо)
+  ];
+  
+  // Находим ближайшее направление
+  let bestHeading: Heading = 0;
+  let bestDistance = Infinity;
+  
+  for (let i = 0; i < directions.length; i++) {
+    const dir = directions[i];
+    // Вычисляем расстояние между вектором движения и направлением
+    const distance = Math.abs(dx - dir.dx) + Math.abs(dy - dir.dy) + Math.abs(dz - dir.dz);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestHeading = i as Heading;
+    }
+  }
+  
+  return bestHeading;
 }
 
 export function generatePlayerShips(): Ship[] {
