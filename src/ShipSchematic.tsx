@@ -1,4 +1,5 @@
 import { Ship, Compartment, CompartmentDeck } from './types';
+import BattleshipSuperstructure from './BattleshipSuperstructure';
 
 interface ShipSchematicProps {
   ship: Ship;
@@ -22,9 +23,12 @@ export default function ShipSchematic({ ship }: ShipSchematicProps) {
     lower: ship.compartments.filter(c => c.deck === 'lower').sort((a, b) => (a.positionFromBow || 0) - (b.positionFromBow || 0)),
   };
 
+  // Количество палуб зависит от типа корабля
+  const hasMiddleDeck = ship.type !== 'destroyer';
+
   const renderSideView = () => {
     const width = 478;
-    const height = 180;
+    const height = 220; // Увеличена высота для надстроек
     const padding = 20;
     const availableWidth = width - padding * 2;
     
@@ -35,6 +39,7 @@ export default function ShipSchematic({ ship }: ShipSchematicProps) {
     
     const deckHeight = 40;
     const deckGap = 5;
+    const superstructureOffset = ship.type === 'battleship' ? 60 : 0; // Место для надстроек
 
     return (
       <svg width={width} height={height} className="border border-slate-600 rounded bg-slate-900/50">
@@ -42,11 +47,21 @@ export default function ShipSchematic({ ship }: ShipSchematicProps) {
           ВИД СБОКУ - {ship.name} ({shipLength}м, {numCompartments} отсеков)
         </text>
         
+        {/* Надстройки для линкора */}
+        {ship.type === 'battleship' && (
+          <BattleshipSuperstructure 
+            width={availableWidth} 
+            height={superstructureOffset} 
+            offsetX={padding} 
+            offsetY={20} 
+          />
+        )}
+        
         {/* Верхняя палуба */}
-        <text x="5" y="35" fill="#94a3b8" fontSize="8">Верхняя</text>
+        <text x="5" y={25 + superstructureOffset} fill="#94a3b8" fontSize="8">Верхняя</text>
         {compartmentsByDeck.upper.map((comp, idx) => {
           const x = padding + idx * compartmentWidth;
-          const y = 25;
+          const y = 25 + superstructureOffset;
           const color = getCompartmentColor(comp);
           
           return (
@@ -77,46 +92,50 @@ export default function ShipSchematic({ ship }: ShipSchematicProps) {
           );
         })}
 
-        {/* Средняя палуба */}
-        <text x="5" y={25 + deckHeight + deckGap + 15} fill="#94a3b8" fontSize="8">Средняя</text>
-        {compartmentsByDeck.middle.map((comp, idx) => {
-          const x = padding + idx * compartmentWidth;
-          const y = 25 + deckHeight + deckGap;
-          const color = getCompartmentColor(comp);
-          
-          return (
-            <g key={comp.id}>
-              <rect
-                x={x}
-                y={y}
-                width={compartmentWidth - 1}
-                height={deckHeight}
-                fill={color}
-                opacity={0.7}
-                stroke="#475569"
-                strokeWidth="0.5"
-              />
-              {comp.flooded > 0 && (
-                <text x={x + compartmentWidth / 2} y={y + deckHeight / 2} 
-                      fill="#60a5fa" fontSize="8" textAnchor="middle" dominantBaseline="middle">
-                  💧
-                </text>
-              )}
-              {comp.fire > 0 && (
-                <text x={x + compartmentWidth / 2 + 8} y={y + deckHeight / 2} 
-                      fill="#f97316" fontSize="8" textAnchor="middle" dominantBaseline="middle">
-                  🔥
-                </text>
-              )}
-            </g>
-          );
-        })}
+        {/* Средняя палуба (только для крейсеров и линкоров) */}
+        {ship.type !== 'destroyer' && (
+          <>
+            <text x="5" y={25 + superstructureOffset + deckHeight + deckGap + 15} fill="#94a3b8" fontSize="8">Средняя</text>
+            {compartmentsByDeck.middle.map((comp, idx) => {
+              const x = padding + idx * compartmentWidth;
+              const y = 25 + superstructureOffset + deckHeight + deckGap;
+              const color = getCompartmentColor(comp);
+              
+              return (
+                <g key={comp.id}>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={compartmentWidth - 1}
+                    height={deckHeight}
+                    fill={color}
+                    opacity={0.7}
+                    stroke="#475569"
+                    strokeWidth="0.5"
+                  />
+                  {comp.flooded > 0 && (
+                    <text x={x + compartmentWidth / 2} y={y + deckHeight / 2} 
+                          fill="#60a5fa" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                      💧
+                    </text>
+                  )}
+                  {comp.fire > 0 && (
+                    <text x={x + compartmentWidth / 2 + 8} y={y + deckHeight / 2} 
+                          fill="#f97316" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                      🔥
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </>
+        )}
 
         {/* Нижняя палуба */}
-        <text x="5" y={25 + (deckHeight + deckGap) * 2 + 15} fill="#94a3b8" fontSize="8">Нижняя</text>
+        <text x="5" y={25 + superstructureOffset + (ship.type === 'destroyer' ? 1 : 2) * (deckHeight + deckGap) + 15} fill="#94a3b8" fontSize="8">Нижняя</text>
         {compartmentsByDeck.lower.map((comp, idx) => {
           const x = padding + idx * compartmentWidth;
-          const y = 25 + (deckHeight + deckGap) * 2;
+          const y = 25 + superstructureOffset + (ship.type === 'destroyer' ? 1 : 2) * (deckHeight + deckGap);
           const color = getCompartmentColor(comp);
           
           return (

@@ -271,8 +271,11 @@ export function createCompartments(shipType: ShipType, shipLengthMeters: number 
   // Количество отсеков по длине
   const numCompartments = Math.ceil(shipLengthMeters / COMPARTMENT_LENGTH);
   
-  // 3 палубы для всех кораблей
-  const decks: CompartmentDeck[] = ['upper', 'middle', 'lower'];
+  // Количество палуб зависит от типа корабля
+  // Эсминцы - 2 палубы, крейсеры и линкоры - 3 палубы
+  const decks: CompartmentDeck[] = shipType === 'destroyer' 
+    ? ['upper', 'lower'] 
+    : ['upper', 'middle', 'lower'];
   
   let compartmentId = 1;
 
@@ -307,7 +310,7 @@ export function createCompartments(shipType: ShipType, shipLengthMeters: number 
       } else if (shipType === 'cruiser') {
         baseHP = deck === 'upper' ? 20 : deck === 'middle' ? 25 : 30;
       } else {
-        baseHP = deck === 'upper' ? 15 : deck === 'middle' ? 20 : 25;
+        baseHP = deck === 'upper' ? 15 : 25;
       }
       
       // Броня зависит от палубы
@@ -317,7 +320,7 @@ export function createCompartments(shipType: ShipType, shipLengthMeters: number 
       } else if (shipType === 'cruiser') {
         armor = deck === 'upper' ? 75 : deck === 'middle' ? 100 : 125;
       } else {
-        armor = deck === 'upper' ? 25 : deck === 'middle' ? 50 : 75;
+        armor = deck === 'upper' ? 25 : 75;
       }
 
       compartments.push({
@@ -385,6 +388,7 @@ function getDeckName(deck: CompartmentDeck): string {
     case 'middle': return 'Средняя палуба';
     case 'lower': return 'Нижняя палуба';
     case 'bottom': return 'Двойное дно';
+    default: return 'Палуба';
   }
 }
 
