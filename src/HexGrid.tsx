@@ -49,6 +49,8 @@ export default function HexGrid({
   selectedShipForMove,
   reachableHexes = [],
   attackingShip,
+  playerTrajectories = [],
+  enemyTrajectories = [],
   onCellClick,
   onShipClick,
 }: HexGridProps) {
@@ -100,6 +102,50 @@ export default function HexGrid({
             );
           })
         )}
+
+        {/* Траектории кораблей игрока */}
+        {playerTrajectories.map((trajectory, idx) => {
+          if (trajectory.path.length < 2) return null;
+          const startPos = getHexPosition(trajectory.path[0].q, trajectory.path[0].r, HEX_SIZE);
+          const endPos = getHexPosition(trajectory.path[trajectory.path.length - 1].q, trajectory.path[trajectory.path.length - 1].r, HEX_SIZE);
+          
+          return (
+            <line
+              key={`player-traj-${idx}`}
+              x1={startPos.x}
+              y1={startPos.y}
+              x2={endPos.x}
+              y2={endPos.y}
+              stroke="#3b82f6"
+              strokeWidth="2"
+              strokeDasharray="5,5"
+              opacity="0.6"
+              style={{ pointerEvents: 'none' }}
+            />
+          );
+        })}
+
+        {/* Траектории кораблей противника */}
+        {enemyTrajectories.map((trajectory, idx) => {
+          if (trajectory.path.length < 2) return null;
+          const startPos = getHexPosition(trajectory.path[0].q, trajectory.path[0].r, HEX_SIZE);
+          const endPos = getHexPosition(trajectory.path[trajectory.path.length - 1].q, trajectory.path[trajectory.path.length - 1].r, HEX_SIZE);
+          
+          return (
+            <line
+              key={`enemy-traj-${idx}`}
+              x1={startPos.x}
+              y1={startPos.y}
+              x2={endPos.x}
+              y2={endPos.y}
+              stroke="#ef4444"
+              strokeWidth="2"
+              strokeDasharray="5,5"
+              opacity="0.6"
+              style={{ pointerEvents: 'none' }}
+            />
+          );
+        })}
 
         {playerShips.filter(s => s.currentHP > 0).map(ship => {
           const pos = getHexPosition(ship.q, ship.r, HEX_SIZE);
