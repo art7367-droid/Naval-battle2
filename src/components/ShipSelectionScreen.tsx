@@ -1,0 +1,136 @@
+import { useState, useEffect } from 'react';
+import { ShipDatabaseEntry } from '../types/shipDatabase';
+import { loadDatabase } from '../utils/shipDatabase';
+
+interface ShipSelectionScreenProps {
+  onStartBattle: (playerShips: ShipDatabaseEntry[], enemyShips: ShipDatabaseEntry[]) => void;
+}
+
+export default function ShipSelectionScreen({ onStartBattle }: ShipSelectionScreenProps) {
+  const [ships, setShips] = useState<ShipDatabaseEntry[]>([]);
+  const [selectedPlayerShips, setSelectedPlayerShips] = useState<ShipDatabaseEntry[]>([]);
+  const [selectedEnemyShips, setSelectedEnemyShips] = useState<ShipDatabaseEntry[]>([]);
+
+  useEffect(() => {
+    const db = loadDatabase();
+    setShips(db.ships);
+  }, []);
+
+  const togglePlayerShip = (ship: ShipDatabaseEntry) => {
+    if (selectedPlayerShips.find(s => s.id === ship.id)) {
+      setSelectedPlayerShips(selectedPlayerShips.filter(s => s.id !== ship.id));
+    } else {
+      setSelectedPlayerShips([...selectedPlayerShips, ship]);
+    }
+  };
+
+  const toggleEnemyShip = (ship: ShipDatabaseEntry) => {
+    if (selectedEnemyShips.find(s => s.id === ship.id)) {
+      setSelectedEnemyShips(selectedEnemyShips.filter(s => s.id !== ship.id));
+    } else {
+      setSelectedEnemyShips([...selectedEnemyShips, ship]);
+    }
+  };
+
+  const handleStart = () => {
+    if (selectedPlayerShips.length === 0 || selectedEnemyShips.length === 0) {
+      alert('Выберите хотя бы один корабль для каждой стороны!');
+      return;
+    }
+    onStartBattle(selectedPlayerShips, selectedEnemyShips);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 text-white p-4">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold text-center mb-6 text-cyan-300">⚓ Выбор кораблей для боя</h1>
+
+        {ships.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">📚</div>
+            <div className="text-xl text-slate-400 mb-2">База данных пуста</div>
+            <div className="text-sm text-slate-500">Сначала добавьте корабли в базу данных</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="bg-slate-800/50 rounded-lg p-4 border border-cyan-600">
+              <h2 className="text-lg font-bold text-cyan-300 mb-3">🛡️ Ваш флот ({selectedPlayerShips.length})</h2>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {selectedPlayerShips.map(ship => (
+                  <div key={ship.id} className="p-2 bg-cyan-900/30 border border-cyan-500 rounded cursor-pointer" onClick={() => togglePlayerShip(ship)}>
+                    <div className="font-semibold">{ship.name}</div>
+                    <div className="text-xs text-slate-400">{ship.class} • {ship.country}</div>
+                  </div>
+                ))}
+                {selectedPlayerShips.length === 0 && (
+                  <div className="text-center text-slate-500 py-4 text-sm">Выберите корабли из списка</div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600">
+              <h2 className="text-lg font-bold text-slate-300 mb-3">📚 Доступные корабли ({ships.length})</h2>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {ships.map(ship => {
+                  const isPlayerSelected = selectedPlayerShips.find(s => s.id === ship.id);
+                  const isEnemySelected = selectedEnemyShips.find(s => s.id === ship.id);
+
+                  return (
+                    <div key={ship.id} className={`p-2 rounded border ${
+                      isPlayerSelected ? 'bg-cyan-900/30 border-cyan-500' :
+                      isEnemySelected ? 'bg-red-900/30 border-red-500' :
+                      'bg-slate-900/50 border-slate-700 hover:bg-slate-800/50'
+                    }`}>
+                      <div className="font-semibold text-sm">{ship.name}</div>
+                      <div className="text-xs text-slate-400">{ship.class} • {ship.country} • {ship.year}</div>
+                      <div className="text-xs text-slate-500 mb-2">HP: {ship.maxHP} | Скорость: {ship.speed} | Дальность: {ship.range}</div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => togglePlayerShip(ship)}
+                          className={`flex-1 px-2 py-1 rounded text-xs ${isPlayerSelected ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-slate-700 hover:bg-slate-600'}`}
+                        >
+                          🛡️ Игрок
+                        </button>
+                        <button
+                          onClick={() => toggleEnemyShip(ship)}
+                          className={`flex-1 px-2 py-1 rounded text-xs ${isEnemySelected ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-700 hover:bg-slate-600'}`}
+                        >
+                          🎯 Враг
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 rounded-lg p-4 border border-red-600">
+              <h2 className="text-lg font-bold text-red-300 mb-3">🎯 Флот противника ({selectedEnemyShips.length})</h2>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {selectedEnemyShips.map(ship => (
+                  <div key={ship.id} className="p-2 bg-red-900/30 border border-red-500 rounded cursor-pointer" onClick={() => toggleEnemyShip(ship)}>
+                    <div className="font-semibold">{ship.name}</div>
+                    <div className="text-xs text-slate-400">{ship.class} • {ship.country}</div>
+                  </div>
+                ))}
+                {selectedEnemyShips.length === 0 && (
+                  <div className="text-center text-slate-500 py-4 text-sm">Выберите корабли из списка</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="text-center mt-6">
+          <button
+            onClick={handleStart}
+            disabled={selectedPlayerShips.length === 0 || selectedEnemyShips.length === 0}
+            className="px-8 py-3 bg-gradient-to-r from-red-500 to-orange-600 rounded-lg font-bold text-lg hover:from-red-600 hover:to-orange-700 disabled:from-slate-700 disabled:to-slate-700 disabled:cursor-not-allowed transition-all shadow-lg"
+          >
+            ⚔️ Начать бой!
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
