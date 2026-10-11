@@ -1,4 +1,5 @@
 import { Ship, GamePhase, Shot, Trajectory, BOARD_SIZE } from './types';
+import ShipSprite from './ShipSprite';
 
 interface HexGridProps {
   playerShips: Ship[];
@@ -167,10 +168,7 @@ export default function HexGrid({
               {phase === 'planning' && attackingShip && attackingShip.id === ship.id && (
                 <circle cx={0} cy={0} r={HEX_SIZE * 0.9} fill="none" stroke="#ef4444" strokeWidth="3" strokeDasharray="5,3" opacity="0.9" />
               )}
-              <circle cx={0} cy={0} r={HEX_SIZE * 0.6} fill="#3b82f6" stroke="#2563eb" strokeWidth="1.5" />
-              <text x={0} y={0} textAnchor="middle" dominantBaseline="middle" fontSize={HEX_SIZE * 0.6}>
-                {ship.type === 'battleship' ? '🚢' : ship.type === 'cruiser' ? '⛴️' : '🚤'}
-              </text>
+              <ShipSprite type={ship.type} heading={ship.heading} isPlayer={true} size={HEX_SIZE * 0.85} />
               <text x={0} y={HEX_SIZE * 0.9} textAnchor="middle" fontSize={HEX_SIZE * 0.35} fontWeight="bold" fill="#4ade80">
                 {ship.currentHP}
               </text>
@@ -193,10 +191,7 @@ export default function HexGrid({
               }}
               className={phase === 'planning' ? 'cursor-crosshair' : ''}
             >
-              <circle cx={0} cy={0} r={HEX_SIZE * 0.6} fill="#ef4444" stroke="#dc2626" strokeWidth="1.5" />
-              <text x={0} y={0} textAnchor="middle" dominantBaseline="middle" fontSize={HEX_SIZE * 0.6}>
-                {ship.type === 'battleship' ? '🚢' : ship.type === 'cruiser' ? '⛴️' : '🚤'}
-              </text>
+              <ShipSprite type={ship.type} heading={ship.heading} isPlayer={false} size={HEX_SIZE * 0.85} />
               <text x={0} y={HEX_SIZE * 0.9} textAnchor="middle" fontSize={HEX_SIZE * 0.35} fontWeight="bold" fill="#4ade80">
                 {ship.currentHP}
               </text>
