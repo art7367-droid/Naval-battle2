@@ -45,8 +45,8 @@ export default function ShipSchematic({
     const numCompartments = Math.ceil(shipLength / 10);
     const compartmentWidth = availableWidth / numCompartments;
     
-    const deckHeight = 40;
-    const deckGap = 5;
+    const deckHeight = 10; // Уменьшено в 4 раза (было 40)
+    const deckGap = 2;
     const superstructureOffset = ship.type === 'battleship' ? 60 : 0; // Место для надстроек
 
     return (

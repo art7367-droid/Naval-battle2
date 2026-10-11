@@ -49,8 +49,8 @@ export default function CompartmentLayerEditor({
     const positionIndex = comp.positionFromBow ? comp.positionFromBow / 10 : idx % numCompartments;
     
     const superstructureOffset = ship.type === 'battleship' ? 60 : 0;
-    const deckHeight = 40;
-    const deckGap = 5;
+    const deckHeight = 10; // Уменьшено в 4 раза (было 40)
+    const deckGap = 2;
     
     const x = padding + positionIndex * compartmentWidth;
     const y = 25 + superstructureOffset + deckIndex * (deckHeight + deckGap);
@@ -108,8 +108,8 @@ export default function CompartmentLayerEditor({
     if (newWidth > 10 && newHeight > 10) {
       // Определяем палубу и позицию на основе координат
       const superstructureOffset = ship.type === 'battleship' ? 60 : 0;
-      const deckHeight = 40;
-      const deckGap = 5;
+      const deckHeight = 10; // Уменьшено в 4 раза (было 40)
+      const deckGap = 2;
       
       const y = Math.min(drawStart.y, drawCurrent.y);
       let deck: CompartmentDeck = 'upper';
@@ -222,6 +222,9 @@ export default function CompartmentLayerEditor({
           />
           {Math.round(compartmentOpacity * 100)}%
         </label>
+        <div className="px-3 py-1 bg-cyan-900/50 border border-cyan-600 rounded text-xs font-bold text-cyan-300">
+          📊 Отсеков на слое 2: {compartments.length}
+        </div>
       </div>
 
       <input
