@@ -5,8 +5,9 @@ import ImageUploader from './ImageUploader';
 import ShipEditor from './ShipEditor';
 import PresetImage from './PresetImage';
 import CompartmentLayerEditor from './CompartmentLayerEditor';
+import GridCompartmentEditor from './GridCompartmentEditor';
 
-type ViewMode = 'schematic' | 'upload' | 'preset' | 'editor' | 'layerEditor';
+type ViewMode = 'schematic' | 'upload' | 'preset' | 'editor' | 'layerEditor' | 'gridEditor';
 
 interface ShipDetailViewProps {
   ship: Ship | null;
@@ -41,6 +42,16 @@ export default function ShipDetailView({ ship }: ShipDetailViewProps) {
       case 'layerEditor':
         return (
           <CompartmentLayerEditor
+            ship={ship}
+            backgroundImage={backgroundImage}
+            onBackgroundImageChange={setBackgroundImage}
+            compartments={ship.compartments}
+            onCompartmentsChange={() => {}}
+          />
+        );
+      case 'gridEditor':
+        return (
+          <GridCompartmentEditor
             ship={ship}
             backgroundImage={backgroundImage}
             onBackgroundImageChange={setBackgroundImage}
@@ -93,7 +104,7 @@ export default function ShipDetailView({ ship }: ShipDetailViewProps) {
       </div>
 
       {/* Переключатель режимов */}
-      <div className="flex gap-1 mb-2 bg-slate-900/50 p-1 rounded">
+      <div className="flex gap-1 mb-2 bg-slate-900/50 p-1 rounded flex-wrap">
         <button
           onClick={() => setViewMode('schematic')}
           className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
@@ -143,6 +154,16 @@ export default function ShipDetailView({ ship }: ShipDetailViewProps) {
           }`}
         >
           🎨 Слои
+        </button>
+        <button
+          onClick={() => setViewMode('gridEditor')}
+          className={`flex-1 px-2 py-1 rounded text-xs transition-colors ${
+            viewMode === 'gridEditor'
+              ? 'bg-cyan-600 text-white'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+          }`}
+        >
+          🔲 Сетка
         </button>
       </div>
 
