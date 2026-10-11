@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Ship, GamePhase, Shot, Trajectory, BattleLogEntry } from './types';
+import { Ship, GamePhase, Shot, Trajectory, BattleLogEntry, createCompartments, calculateShipStats } from './types';
 import { ShipDatabaseEntry } from './types/shipDatabase';
 import {
   generatePlayerShips,
@@ -68,41 +68,71 @@ function App() {
     setSelectedPlayerShipsFromDB(playerDBShips);
     setSelectedEnemyShipsFromDB(enemyDBShips);
     
-    const pShips = generatePlayerShips();
-    const eShips = generateEnemyShips();
-    
-    pShips.forEach((ship, index) => {
-      if (playerDBShips[index]) {
-        const dbShip = playerDBShips[index];
-        ship.name = dbShip.name;
-        ship.maxHP = dbShip.maxHP;
-        ship.currentHP = dbShip.maxHP;
-        ship.speed = Math.round(dbShip.speed / 10);
-        ship.range = dbShip.range;
-        // Передаём новые характеристики
-        ship.length = dbShip.length;
-        ship.beam = dbShip.beam;
-        ship.draft = dbShip.draft;
-        ship.displacementStandard = dbShip.displacementStandard;
-        ship.displacementFull = dbShip.displacementFull;
-      }
+    // Создаём корабли с учётом реальной длины из базы данных
+    const pShips = playerDBShips.map((dbShip, index) => {
+      const shipLength = dbShip.length || (dbShip.class === 'battleship' ? 250 : dbShip.class === 'cruiser' ? 200 : 115);
+      const compartments = createCompartments(dbShip.class as any, shipLength);
+      const stats = calculateShipStats(compartments);
+      const totalHP = compartments.reduce((sum: number, c: any) => sum + c.maxHP, 0);
+      
+      return {
+        id: index + 1,
+        type: dbShip.class as any,
+        name: dbShip.name,
+        maxHP: totalHP,
+        currentHP: totalHP,
+        q: Math.floor(Math.random() * 8),
+        r: Math.floor(Math.random() * 25),
+        heading: 0 as any,
+        accuracy: 75,
+        damage: 35,
+        speed: Math.round(dbShip.speed / 10),
+        range: dbShip.range,
+        hasMoved: false,
+        hasFired: false,
+        compartments,
+        stats,
+        battleLog: [],
+        isSunk: false,
+        length: dbShip.length,
+        beam: dbShip.beam,
+        draft: dbShip.draft,
+        displacementStandard: dbShip.displacementStandard,
+        displacementFull: dbShip.displacementFull,
+      };
     });
     
-    eShips.forEach((ship, index) => {
-      if (enemyDBShips[index]) {
-        const dbShip = enemyDBShips[index];
-        ship.name = dbShip.name;
-        ship.maxHP = dbShip.maxHP;
-        ship.currentHP = dbShip.maxHP;
-        ship.speed = Math.round(dbShip.speed / 10);
-        ship.range = dbShip.range;
-        // Передаём новые характеристики
-        ship.length = dbShip.length;
-        ship.beam = dbShip.beam;
-        ship.draft = dbShip.draft;
-        ship.displacementStandard = dbShip.displacementStandard;
-        ship.displacementFull = dbShip.displacementFull;
-      }
+    const eShips = enemyDBShips.map((dbShip, index) => {
+      const shipLength = dbShip.length || (dbShip.class === 'battleship' ? 250 : dbShip.class === 'cruiser' ? 200 : 115);
+      const compartments = createCompartments(dbShip.class as any, shipLength);
+      const stats = calculateShipStats(compartments);
+      const totalHP = compartments.reduce((sum: number, c: any) => sum + c.maxHP, 0);
+      
+      return {
+        id: index + 100,
+        type: dbShip.class as any,
+        name: dbShip.name,
+        maxHP: totalHP,
+        currentHP: totalHP,
+        q: 25 - Math.floor(Math.random() * 8),
+        r: Math.floor(Math.random() * 25),
+        heading: 3 as any,
+        accuracy: 75,
+        damage: 35,
+        speed: Math.round(dbShip.speed / 10),
+        range: dbShip.range,
+        hasMoved: false,
+        hasFired: false,
+        compartments,
+        stats,
+        battleLog: [],
+        isSunk: false,
+        length: dbShip.length,
+        beam: dbShip.beam,
+        draft: dbShip.draft,
+        displacementStandard: dbShip.displacementStandard,
+        displacementFull: dbShip.displacementFull,
+      };
     });
     
     setPlayerShips(pShips);

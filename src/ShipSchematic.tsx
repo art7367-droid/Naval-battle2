@@ -1,4 +1,4 @@
-import { Ship, Compartment, CompartmentPosition, CompartmentDeck } from './types';
+import { Ship, Compartment, CompartmentDeck } from './types';
 
 interface ShipSchematicProps {
   ship: Ship;
@@ -15,117 +15,184 @@ export default function ShipSchematic({ ship }: ShipSchematicProps) {
     }
   };
 
-  const getCompartmentById = (position: CompartmentPosition, deck: CompartmentDeck) => {
-    return ship.compartments.find(c => c.position === position && c.deck === deck && c.side === 'center');
+  // Группируем отсеки по палубам
+  const compartmentsByDeck = {
+    upper: ship.compartments.filter(c => c.deck === 'upper').sort((a, b) => (a.positionFromBow || 0) - (b.positionFromBow || 0)),
+    middle: ship.compartments.filter(c => c.deck === 'middle').sort((a, b) => (a.positionFromBow || 0) - (b.positionFromBow || 0)),
+    lower: ship.compartments.filter(c => c.deck === 'lower').sort((a, b) => (a.positionFromBow || 0) - (b.positionFromBow || 0)),
   };
 
   const renderSideView = () => {
     const width = 478;
-    const height = 120;
-    const positions: CompartmentPosition[] = ['bow', 'forward', 'mid', 'aft', 'stern'];
-    const decks: CompartmentDeck[] = ['upper', 'middle', 'lower', 'bottom'];
+    const height = 180;
+    const padding = 20;
+    const availableWidth = width - padding * 2;
     
-    const positionWidth = width / positions.length;
-    const deckHeight = height / decks.length;
+    // Получаем реальную длину корабля
+    const shipLength = ship.length || 250;
+    const numCompartments = Math.ceil(shipLength / 10);
+    const compartmentWidth = availableWidth / numCompartments;
+    
+    const deckHeight = 40;
+    const deckGap = 5;
 
     return (
       <svg width={width} height={height} className="border border-slate-600 rounded bg-slate-900/50">
-        <text x="10" y="15" fill="#94a3b8" fontSize="10" fontWeight="bold">ВИД СБОКУ</text>
+        <text x="10" y="15" fill="#94a3b8" fontSize="10" fontWeight="bold">
+          ВИД СБОКУ - {ship.name} ({shipLength}м, {numCompartments} отсеков)
+        </text>
         
-        {positions.map((pos, pi) => {
-          return decks.map((deck, di) => {
-            const comp = getCompartmentById(pos, deck);
-            if (!comp) return null;
-
-            const x = pi * positionWidth;
-            const y = di * deckHeight + 20;
-            const color = getCompartmentColor(comp);
-
-            return (
-              <g key={`side-${pos}-${deck}`}>
-                <rect
-                  x={x + 1}
-                  y={y + 1}
-                  width={positionWidth - 2}
-                  height={deckHeight - 2}
-                  fill={color}
-                  opacity={0.7}
-                  stroke="#475569"
-                  strokeWidth="0.5"
-                />
-                {comp.flooded > 0 && (
-                  <text x={x + positionWidth / 2} y={y + deckHeight / 2} 
-                        fill="#60a5fa" fontSize="8" textAnchor="middle" dominantBaseline="middle">
-                    💧
-                  </text>
-                )}
-                {comp.fire > 0 && (
-                  <text x={x + positionWidth / 2 + 10} y={y + deckHeight / 2} 
-                        fill="#f97316" fontSize="8" textAnchor="middle" dominantBaseline="middle">
-                    🔥
-                  </text>
-                )}
-              </g>
-            );
-          });
-        })}
-
-        {positions.map((pos, i) => (
-          <text key={pos} x={i * positionWidth + positionWidth / 2} y={height - 2}
-                fill="#94a3b8" fontSize="8" textAnchor="middle">
-            {pos === 'bow' ? 'Нос' : pos === 'forward' ? 'Нос.' : pos === 'mid' ? 'Центр' : pos === 'aft' ? 'Корм.' : 'Корма'}
-          </text>
-        ))}
-
-        {decks.map((deck, i) => (
-          <text key={deck} x={5} y={i * deckHeight + 20 + deckHeight / 2}
-                fill="#94a3b8" fontSize="7" dominantBaseline="middle">
-            {deck === 'upper' ? 'Верх' : deck === 'middle' ? 'Сред' : deck === 'lower' ? 'Низ' : 'Дно'}
-          </text>
-        ))}
-      </svg>
-    );
-  };
-
-  const renderTopView = () => {
-    const width = 478;
-    const height = 100;
-    const positions: CompartmentPosition[] = ['bow', 'forward', 'mid', 'aft', 'stern'];
-    
-    const positionWidth = width / positions.length;
-
-    return (
-      <svg width={width} height={height} className="border border-slate-600 rounded bg-slate-900/50">
-        <text x="10" y="15" fill="#94a3b8" fontSize="10" fontWeight="bold">ВИД СВЕРХУ</text>
-        
-        {positions.map((pos, pi) => {
-          const comp = getCompartmentById(pos, 'upper');
-          if (!comp) return null;
-
-          const x = pi * positionWidth;
-          const y = 20;
+        {/* Верхняя палуба */}
+        <text x="5" y="35" fill="#94a3b8" fontSize="8">Верхняя</text>
+        {compartmentsByDeck.upper.map((comp, idx) => {
+          const x = padding + idx * compartmentWidth;
+          const y = 25;
           const color = getCompartmentColor(comp);
-
+          
           return (
-            <g key={`top-${pos}`}>
+            <g key={comp.id}>
               <rect
-                x={x + 1}
-                y={y + 1}
-                width={positionWidth - 2}
-                height={height - 40}
+                x={x}
+                y={y}
+                width={compartmentWidth - 1}
+                height={deckHeight}
                 fill={color}
                 opacity={0.7}
                 stroke="#475569"
                 strokeWidth="0.5"
               />
               {comp.flooded > 0 && (
-                <text x={x + positionWidth / 2} y={y + (height - 40) / 2} 
+                <text x={x + compartmentWidth / 2} y={y + deckHeight / 2} 
+                      fill="#60a5fa" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                  💧
+                </text>
+              )}
+              {comp.fire > 0 && (
+                <text x={x + compartmentWidth / 2 + 8} y={y + deckHeight / 2} 
+                      fill="#f97316" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                  🔥
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Средняя палуба */}
+        <text x="5" y={25 + deckHeight + deckGap + 15} fill="#94a3b8" fontSize="8">Средняя</text>
+        {compartmentsByDeck.middle.map((comp, idx) => {
+          const x = padding + idx * compartmentWidth;
+          const y = 25 + deckHeight + deckGap;
+          const color = getCompartmentColor(comp);
+          
+          return (
+            <g key={comp.id}>
+              <rect
+                x={x}
+                y={y}
+                width={compartmentWidth - 1}
+                height={deckHeight}
+                fill={color}
+                opacity={0.7}
+                stroke="#475569"
+                strokeWidth="0.5"
+              />
+              {comp.flooded > 0 && (
+                <text x={x + compartmentWidth / 2} y={y + deckHeight / 2} 
+                      fill="#60a5fa" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                  💧
+                </text>
+              )}
+              {comp.fire > 0 && (
+                <text x={x + compartmentWidth / 2 + 8} y={y + deckHeight / 2} 
+                      fill="#f97316" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                  🔥
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Нижняя палуба */}
+        <text x="5" y={25 + (deckHeight + deckGap) * 2 + 15} fill="#94a3b8" fontSize="8">Нижняя</text>
+        {compartmentsByDeck.lower.map((comp, idx) => {
+          const x = padding + idx * compartmentWidth;
+          const y = 25 + (deckHeight + deckGap) * 2;
+          const color = getCompartmentColor(comp);
+          
+          return (
+            <g key={comp.id}>
+              <rect
+                x={x}
+                y={y}
+                width={compartmentWidth - 1}
+                height={deckHeight}
+                fill={color}
+                opacity={0.7}
+                stroke="#475569"
+                strokeWidth="0.5"
+              />
+              {comp.flooded > 0 && (
+                <text x={x + compartmentWidth / 2} y={y + deckHeight / 2} 
+                      fill="#60a5fa" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                  💧
+                </text>
+              )}
+              {comp.fire > 0 && (
+                <text x={x + compartmentWidth / 2 + 8} y={y + deckHeight / 2} 
+                      fill="#f97316" fontSize="8" textAnchor="middle" dominantBaseline="middle">
+                  🔥
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Метки носа и кормы */}
+        <text x={padding} y={height - 5} fill="#94a3b8" fontSize="8" textAnchor="middle">НОС</text>
+        <text x={width - padding} y={height - 5} fill="#94a3b8" fontSize="8" textAnchor="middle">КОРМА</text>
+      </svg>
+    );
+  };
+
+  const renderTopView = () => {
+    const width = 478;
+    const height = 80;
+    const padding = 20;
+    const availableWidth = width - padding * 2;
+    
+    const shipLength = ship.length || 250;
+    const numCompartments = Math.ceil(shipLength / 10);
+    const compartmentWidth = availableWidth / numCompartments;
+
+    return (
+      <svg width={width} height={height} className="border border-slate-600 rounded bg-slate-900/50">
+        <text x="10" y="15" fill="#94a3b8" fontSize="10" fontWeight="bold">ВИД СВЕРХУ</text>
+        
+        {compartmentsByDeck.upper.map((comp, idx) => {
+          const x = padding + idx * compartmentWidth;
+          const y = 25;
+          const color = getCompartmentColor(comp);
+          
+          return (
+            <g key={`top-${comp.id}`}>
+              <rect
+                x={x}
+                y={y}
+                width={compartmentWidth - 1}
+                height={30}
+                fill={color}
+                opacity={0.7}
+                stroke="#475569"
+                strokeWidth="0.5"
+              />
+              {comp.flooded > 0 && (
+                <text x={x + compartmentWidth / 2} y={y + 15} 
                       fill="#60a5fa" fontSize="10" textAnchor="middle" dominantBaseline="middle">
                   💧
                 </text>
               )}
               {comp.fire > 0 && (
-                <text x={x + positionWidth / 2 + 15} y={y + (height - 40) / 2} 
+                <text x={x + compartmentWidth / 2 + 10} y={y + 15} 
                       fill="#f97316" fontSize="10" textAnchor="middle" dominantBaseline="middle">
                   🔥
                 </text>
@@ -134,12 +201,8 @@ export default function ShipSchematic({ ship }: ShipSchematicProps) {
           );
         })}
 
-        {positions.map((pos, i) => (
-          <text key={pos} x={i * positionWidth + positionWidth / 2} y={height - 2}
-                fill="#94a3b8" fontSize="8" textAnchor="middle">
-            {pos === 'bow' ? 'Нос' : pos === 'forward' ? 'Нос.' : pos === 'mid' ? 'Центр' : pos === 'aft' ? 'Корм.' : 'Корма'}
-          </text>
-        ))}
+        <text x={padding} y={height - 5} fill="#94a3b8" fontSize="8" textAnchor="middle">НОС</text>
+        <text x={width - padding} y={height - 5} fill="#94a3b8" fontSize="8" textAnchor="middle">КОРМА</text>
       </svg>
     );
   };

@@ -72,6 +72,10 @@ export interface Compartment {
   adjacentIds: string[];
   // Флаг детонации боезапаса
   detonated?: boolean;
+  // Новая система: реальная длина отсека в метрах
+  lengthMeters?: number;
+  // Позиция от носа в метрах (для визуализации)
+  positionFromBow?: number;
 }
 
 // Агрегированные характеристики корабля
@@ -259,53 +263,81 @@ function createComponentsForCompartment(
   return components;
 }
 
-// Создание отсеков для корабля
-export function createCompartments(shipType: ShipType): Compartment[] {
+// Создание отсеков для корабля с учётом реальной длины
+export function createCompartments(shipType: ShipType, shipLengthMeters: number = 200): Compartment[] {
   const compartments: Compartment[] = [];
-  const positions: CompartmentPosition[] = ['bow', 'forward', 'mid', 'aft', 'stern'];
-  const decks: CompartmentDeck[] = ['upper', 'middle', 'lower', 'bottom'];
-  const sides: CompartmentSide[] = ['port', 'center', 'starboard'];
-
+  const COMPARTMENT_LENGTH = 10; // 10 метров на отсек
+  
+  // Количество отсеков по длине
+  const numCompartments = Math.ceil(shipLengthMeters / COMPARTMENT_LENGTH);
+  
+  // 3 палубы для всех кораблей
+  const decks: CompartmentDeck[] = ['upper', 'middle', 'lower'];
+  
   let compartmentId = 1;
 
-  for (const position of positions) {
+  // Создаём отсеки по длине корабля
+  for (let i = 0; i < numCompartments; i++) {
+    const positionFromBow = i * COMPARTMENT_LENGTH;
+    
+    // Определяем позицию по длине
+    let position: CompartmentPosition;
+    const relativePos = i / numCompartments;
+    
+    if (relativePos < 0.15) {
+      position = 'bow';
+    } else if (relativePos < 0.35) {
+      position = 'forward';
+    } else if (relativePos < 0.65) {
+      position = 'mid';
+    } else if (relativePos < 0.85) {
+      position = 'aft';
+    } else {
+      position = 'stern';
+    }
+    
+    // Создаём отсеки для каждой палубы
     for (const deck of decks) {
-      if (position === 'bow' && (deck === 'lower' || deck === 'bottom')) continue;
-      if (position === 'stern' && deck === 'upper') continue;
-
-      for (const side of sides) {
-        if (position === 'mid' && side !== 'center') continue;
-        if (position !== 'mid' && side === 'center') continue;
-
-        const id = `comp_${compartmentId++}`;
-        const baseHP = shipType === 'battleship' ? 25 : shipType === 'cruiser' ? 20 : 15;
-        
-        let armor = 50;
-        if (shipType === 'battleship') {
-          armor = deck === 'upper' ? 100 : deck === 'middle' ? 150 : 200;
-        } else if (shipType === 'cruiser') {
-          armor = deck === 'upper' ? 75 : deck === 'middle' ? 100 : 125;
-        } else {
-          armor = deck === 'upper' ? 25 : deck === 'middle' ? 50 : 75;
-        }
-
-        compartments.push({
-          id,
-          position,
-          deck,
-          side,
-          name: `${getPositionName(position)} - ${getDeckName(deck)}`,
-          maxHP: baseHP,
-          currentHP: baseHP,
-          status: 'intact',
-          watertight: deck !== 'upper',
-          armor,
-          flooded: 0.0,
-          fire: 0.0,
-          components: createComponentsForCompartment(position, deck, shipType),
-          adjacentIds: [] // будет заполнено ниже
-        });
+      const id = `comp_${compartmentId++}`;
+      
+      // HP зависит от типа корабля и палубы
+      let baseHP = 20;
+      if (shipType === 'battleship') {
+        baseHP = deck === 'upper' ? 25 : deck === 'middle' ? 30 : 35;
+      } else if (shipType === 'cruiser') {
+        baseHP = deck === 'upper' ? 20 : deck === 'middle' ? 25 : 30;
+      } else {
+        baseHP = deck === 'upper' ? 15 : deck === 'middle' ? 20 : 25;
       }
+      
+      // Броня зависит от палубы
+      let armor = 50;
+      if (shipType === 'battleship') {
+        armor = deck === 'upper' ? 100 : deck === 'middle' ? 150 : 200;
+      } else if (shipType === 'cruiser') {
+        armor = deck === 'upper' ? 75 : deck === 'middle' ? 100 : 125;
+      } else {
+        armor = deck === 'upper' ? 25 : deck === 'middle' ? 50 : 75;
+      }
+
+      compartments.push({
+        id,
+        position,
+        deck,
+        side: 'center', // Для упрощения используем только центр
+        name: `Отсек ${i + 1} - ${getDeckName(deck)}`,
+        maxHP: baseHP,
+        currentHP: baseHP,
+        status: 'intact',
+        watertight: deck !== 'upper',
+        armor,
+        flooded: 0.0,
+        fire: 0.0,
+        components: createComponentsForCompartment(position, deck, shipType),
+        adjacentIds: [],
+        lengthMeters: COMPARTMENT_LENGTH,
+        positionFromBow
+      });
     }
   }
 
@@ -313,18 +345,21 @@ export function createCompartments(shipType: ShipType): Compartment[] {
   compartments.forEach(comp => {
     const adjacent = compartments.filter(other => {
       if (other.id === comp.id) return false;
-      // Соседние по позиции
-      const posOrder: CompartmentPosition[] = ['bow', 'forward', 'mid', 'aft', 'stern'];
-      const deckOrder: CompartmentDeck[] = ['upper', 'middle', 'lower', 'bottom'];
-      const posDiff = Math.abs(posOrder.indexOf(comp.position) - posOrder.indexOf(other.position));
-      const deckDiff = Math.abs(deckOrder.indexOf(comp.deck) - deckOrder.indexOf(other.deck));
       
-      // Соседние по позиции (рядом по длине)
-      if (posDiff === 1 && comp.deck === other.deck) return true;
+      // Соседние по длине (рядом по позиции от носа)
+      if (comp.positionFromBow !== undefined && other.positionFromBow !== undefined) {
+        const posDiff = Math.abs(comp.positionFromBow - other.positionFromBow);
+        if (posDiff === COMPARTMENT_LENGTH && comp.deck === other.deck) {
+          return true;
+        }
+      }
+      
       // Соседние по палубе (над/под)
-      if (deckDiff === 1 && comp.position === other.position) return true;
-      // Соседние по борту
-      if (comp.position === other.position && comp.deck === other.deck) return true;
+      const deckOrder: CompartmentDeck[] = ['upper', 'middle', 'lower'];
+      const deckDiff = Math.abs(deckOrder.indexOf(comp.deck) - deckOrder.indexOf(other.deck));
+      if (deckDiff === 1 && comp.positionFromBow === other.positionFromBow) {
+        return true;
+      }
       
       return false;
     });

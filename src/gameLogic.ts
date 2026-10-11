@@ -89,7 +89,9 @@ export function generatePlayerShips(): Ship[] {
       const r = Math.floor(Math.random() * BOARD_SIZE);
       const occupied = ships.some(s => s.q === q && s.r === r);
       if (!occupied) {
-        const compartments = createCompartments(shipDef.type);
+        // Используем значения по умолчанию для длины корабля
+        const defaultLength = shipDef.type === 'battleship' ? 250 : shipDef.type === 'cruiser' ? 200 : 115;
+        const compartments = createCompartments(shipDef.type, defaultLength);
         const stats = calculateShipStats(compartments);
         const totalHP = compartments.reduce((sum, c) => sum + c.maxHP, 0);
         
@@ -148,7 +150,9 @@ export function generateEnemyShips(): Ship[] {
       const r = Math.floor(Math.random() * BOARD_SIZE);
       const occupied = ships.some(s => s.q === q && s.r === r);
       if (!occupied) {
-        const compartments = createCompartments(shipDef.type);
+        // Используем значения по умолчанию для длины корабля
+        const defaultLength = shipDef.type === 'battleship' ? 250 : shipDef.type === 'cruiser' ? 200 : 115;
+        const compartments = createCompartments(shipDef.type, defaultLength);
         const stats = calculateShipStats(compartments);
         const totalHP = compartments.reduce((sum, c) => sum + c.maxHP, 0);
         
