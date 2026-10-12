@@ -54,6 +54,46 @@ export default function GridCompartmentEditor({
   const cols = Math.floor((width - padding * 2) / gridSize);
   const rows = Math.floor((height - padding * 2) / gridSize);
 
+  // Синхронизация compartments и compartmentPositions
+  useEffect(() => {
+    setCompartmentPositions(prevPositions => {
+      const newPositions = new Map(prevPositions);
+      
+      // Добавляем позиции для новых отсеков
+      compartments.forEach((comp, idx) => {
+        if (!newPositions.has(comp.id)) {
+          // Находим свободную клетку
+          let foundPosition: CompartmentGridPosition | null = null;
+          
+          for (let y = rows - 1; y >= 0 && !foundPosition; y--) {
+            for (let x = 0; x < cols && !foundPosition; x++) {
+              const isOccupied = Array.from(newPositions.values()).some(
+                pos => pos.gridX === x && pos.gridY === y
+              );
+              
+              if (!isOccupied) {
+                foundPosition = { gridX: x, gridY: y };
+              }
+            }
+          }
+          
+          const position = foundPosition || { gridX: 0, gridY: rows - 1 };
+          newPositions.set(comp.id, position);
+        }
+      });
+      
+      // Удаляем позиции для удалённых отсеков
+      const compartmentIds = new Set(compartments.map(c => c.id));
+      Array.from(newPositions.keys()).forEach(id => {
+        if (!compartmentIds.has(id)) {
+          newPositions.delete(id);
+        }
+      });
+      
+      return newPositions;
+    });
+  }, [compartments, rows, cols]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -184,29 +224,8 @@ export default function GridCompartmentEditor({
   };
 
   const addCompartment = () => {
-    // Находим свободную клетку начиная с нижнего левого угла
-    // Нижний левый угол: gridX = 0, gridY = rows - 1
-    let foundPosition: CompartmentGridPosition | null = null;
-    
-    // Перебираем клетки снизу вверх, слева направо
-    for (let y = rows - 1; y >= 0 && !foundPosition; y--) {
-      for (let x = 0; x < cols && !foundPosition; x++) {
-        // Проверяем, занята ли эта клетка
-        const isOccupied = Array.from(compartmentPositions.values()).some(
-          pos => pos.gridX === x && pos.gridY === y
-        );
-        
-        if (!isOccupied) {
-          foundPosition = { gridX: x, gridY: y };
-        }
-      }
-    }
-    
-    // Если не нашли свободную клетку, используем (0, rows-1)
-    const position = foundPosition || { gridX: 0, gridY: rows - 1 };
-    
     const newCompartment: Compartment = {
-      id: `comp_${Date.now()}`,
+      id: `comp_${Date.now()}_${Math.random()}`,
       position: 'mid',
       deck: 'lower',
       side: 'center',
@@ -221,24 +240,16 @@ export default function GridCompartmentEditor({
       components: [],
       adjacentIds: [],
       lengthMeters: 10,
-      positionFromBow: position.gridX * 10
+      positionFromBow: 0
     };
 
-    const newPositions = new Map(compartmentPositions);
-    newPositions.set(newCompartment.id, position);
-    setCompartmentPositions(newPositions);
-    
+    // Просто добавляем отсек - useEffect автоматически добавит позицию
     onCompartmentsChange([...compartments, newCompartment]);
     setSelectedCompartment(newCompartment.id);
   };
 
   const deleteCompartment = (id: string) => {
-    // Удаляем позицию из Map
-    const newPositions = new Map(compartmentPositions);
-    newPositions.delete(id);
-    setCompartmentPositions(newPositions);
-    
-    // Удаляем отсек из массива compartments
+    // Просто удаляем отсек - useEffect автоматически удалит позицию
     onCompartmentsChange(compartments.filter(c => c.id !== id));
     
     // Снимаем выделение, если удалили выбранный отсек
