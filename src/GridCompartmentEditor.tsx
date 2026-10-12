@@ -56,10 +56,10 @@ export default function GridCompartmentEditor({
   // Параметры сетки (фиксированные)
   const cols = 56; // 56 ячеек в длину
   const rows = 23; // 23 ячейки в высоту
-  const gridSize = 15; // 15px на ячейку
-  const padding = 10;
-  const width = cols * gridSize + padding * 2; // 860px
-  const height = rows * gridSize + padding * 2; // 365px
+  const gridSize = 10; // 10px на ячейку
+  const padding = 20; // увеличен padding для лучшего визуального разделения
+  const width = cols * gridSize + padding * 2; // 600px
+  const height = rows * gridSize + padding * 2; // 270px
 
   // Синхронизация compartments и compartmentPositions
   useEffect(() => {
