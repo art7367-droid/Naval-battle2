@@ -40,15 +40,8 @@ export default function GridCompartmentEditor({
   const [backgroundDragOffset, setBackgroundDragOffset] = useState<GridPosition>({ x: 0, y: 0 });
   
   // Позиции отсеков в сетке (1 отсек = 1 клетка)
-  const [compartmentPositions, setCompartmentPositions] = useState<Map<string, CompartmentGridPosition>>(() => {
-    const map = new Map<string, CompartmentGridPosition>();
-    compartments.forEach((comp, idx) => {
-      const deckIndex = comp.deck === 'upper' ? 0 : comp.deck === 'middle' ? 1 : 2;
-      const positionIndex = comp.positionFromBow ? Math.floor(comp.positionFromBow / 10) : idx % 20;
-      map.set(comp.id, { gridX: positionIndex, gridY: deckIndex * 3 });
-    });
-    return map;
-  });
+  // Начинаем с пустого редактора - отсеки добавляются вручную
+  const [compartmentPositions, setCompartmentPositions] = useState<Map<string, CompartmentGridPosition>>(new Map());
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -191,10 +184,31 @@ export default function GridCompartmentEditor({
   };
 
   const addCompartment = () => {
+    // Находим свободную клетку начиная с нижнего левого угла
+    // Нижний левый угол: gridX = 0, gridY = rows - 1
+    let foundPosition: CompartmentGridPosition | null = null;
+    
+    // Перебираем клетки снизу вверх, слева направо
+    for (let y = rows - 1; y >= 0 && !foundPosition; y--) {
+      for (let x = 0; x < cols && !foundPosition; x++) {
+        // Проверяем, занята ли эта клетка
+        const isOccupied = Array.from(compartmentPositions.values()).some(
+          pos => pos.gridX === x && pos.gridY === y
+        );
+        
+        if (!isOccupied) {
+          foundPosition = { gridX: x, gridY: y };
+        }
+      }
+    }
+    
+    // Если не нашли свободную клетку, используем (0, rows-1)
+    const position = foundPosition || { gridX: 0, gridY: rows - 1 };
+    
     const newCompartment: Compartment = {
       id: `comp_${Date.now()}`,
       position: 'mid',
-      deck: 'upper',
+      deck: 'lower',
       side: 'center',
       name: `Отсек ${compartments.length + 1}`,
       maxHP: 20,
@@ -207,11 +221,11 @@ export default function GridCompartmentEditor({
       components: [],
       adjacentIds: [],
       lengthMeters: 10,
-      positionFromBow: 0
+      positionFromBow: position.gridX * 10
     };
 
     const newPositions = new Map(compartmentPositions);
-    newPositions.set(newCompartment.id, { gridX: 0, gridY: 0 });
+    newPositions.set(newCompartment.id, position);
     setCompartmentPositions(newPositions);
     
     onCompartmentsChange([...compartments, newCompartment]);
@@ -219,11 +233,15 @@ export default function GridCompartmentEditor({
   };
 
   const deleteCompartment = (id: string) => {
+    // Удаляем позицию из Map
     const newPositions = new Map(compartmentPositions);
     newPositions.delete(id);
     setCompartmentPositions(newPositions);
     
+    // Удаляем отсек из массива compartments
     onCompartmentsChange(compartments.filter(c => c.id !== id));
+    
+    // Снимаем выделение, если удалили выбранный отсек
     if (selectedCompartment === id) {
       setSelectedCompartment(null);
     }
