@@ -27,7 +27,9 @@ export default function GridCompartmentEditor({
   onCompartmentsChange
 }: GridCompartmentEditorProps) {
   const [selectedCompartment, setSelectedCompartment] = useState<string | null>(null);
+  const [selectedCompartments, setSelectedCompartments] = useState<Set<string>>(new Set());
   const [draggingCompartment, setDraggingCompartment] = useState<string | null>(null);
+  const [draggingMultiple, setDraggingMultiple] = useState(false);
   const [dragOffset, setDragOffset] = useState<GridPosition>({ x: 0, y: 0 });
   const [dragPosition, setDragPosition] = useState<GridPosition>({ x: 0, y: 0 });
   const [compartmentOpacity, setCompartmentOpacity] = useState(0.7);
@@ -39,6 +41,11 @@ export default function GridCompartmentEditor({
   const [draggingBackground, setDraggingBackground] = useState(false);
   const [backgroundDragOffset, setBackgroundDragOffset] = useState<GridPosition>({ x: 0, y: 0 });
   
+  // Выделение мышкой
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<GridPosition | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<GridPosition | null>(null);
+  
   // Позиции отсеков в сетке (1 отсек = 1 клетка)
   // Начинаем с пустого редактора - отсеки добавляются вручную
   const [compartmentPositions, setCompartmentPositions] = useState<Map<string, CompartmentGridPosition>>(new Map());
@@ -46,13 +53,13 @@ export default function GridCompartmentEditor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Параметры сетки
-  const gridSize = 10;
-  const width = 500;
-  const height = 250;
+  // Параметры сетки (фиксированные)
+  const cols = 56; // 56 ячеек в длину
+  const rows = 23; // 23 ячейки в высоту
+  const gridSize = 15; // 15px на ячейку
   const padding = 10;
-  const cols = Math.floor((width - padding * 2) / gridSize);
-  const rows = Math.floor((height - padding * 2) / gridSize);
+  const width = cols * gridSize + padding * 2; // 860px
+  const height = rows * gridSize + padding * 2; // 365px
 
   // Синхронизация compartments и compartmentPositions
   useEffect(() => {
@@ -108,6 +115,22 @@ export default function GridCompartmentEditor({
 
   // Обработчики для перетаскивания фона
   const handleBackgroundMouseDown = (e: React.MouseEvent) => {
+    // Если нажата клавиша Shift, начинаем выделение
+    if (e.shiftKey) {
+      e.preventDefault();
+      const svgRect = svgRef.current?.getBoundingClientRect();
+      if (!svgRect) return;
+
+      const mouseX = e.clientX - svgRect.left - padding;
+      const mouseY = e.clientY - svgRect.top - padding;
+
+      setIsSelecting(true);
+      setSelectionStart({ x: mouseX, y: mouseY });
+      setSelectionEnd({ x: mouseX, y: mouseY });
+      return;
+    }
+
+    // Если нет изображения или не нажат Shift, начинаем перетаскивание фона
     if (!backgroundImage) return;
     e.preventDefault();
     
@@ -160,7 +183,12 @@ export default function GridCompartmentEditor({
     const mouseX = e.clientX - svgRect.left;
     const mouseY = e.clientY - svgRect.top;
 
-    if (draggingBackground) {
+    if (isSelecting) {
+      // Выделение мышкой
+      const relX = mouseX - padding;
+      const relY = mouseY - padding;
+      setSelectionEnd({ x: relX, y: relY });
+    } else if (draggingBackground) {
       // Перетаскивание фона
       const newX = mouseX - backgroundDragOffset.x;
       const newY = mouseY - backgroundDragOffset.y;
@@ -178,10 +206,32 @@ export default function GridCompartmentEditor({
 
       setDragPosition({ x: clampedX, y: clampedY });
     }
-  }, [draggingBackground, draggingCompartment, backgroundDragOffset, dragOffset, gridSize, cols, rows]);
+  }, [isSelecting, draggingBackground, draggingCompartment, backgroundDragOffset, dragOffset, gridSize, cols, rows]);
 
   const handleMouseUp = useCallback(() => {
-    if (draggingCompartment) {
+    if (isSelecting && selectionStart && selectionEnd) {
+      // Завершение выделения
+      const minX = Math.min(selectionStart.x, selectionEnd.x);
+      const maxX = Math.max(selectionStart.x, selectionEnd.x);
+      const minY = Math.min(selectionStart.y, selectionEnd.y);
+      const maxY = Math.max(selectionStart.y, selectionEnd.y);
+
+      // Находим отсеки в области выделения
+      const selected = new Set<string>();
+      compartmentPositions.forEach((pos, id) => {
+        const compX = pos.gridX * gridSize;
+        const compY = pos.gridY * gridSize;
+        
+        if (compX >= minX && compX <= maxX && compY >= minY && compY <= maxY) {
+          selected.add(id);
+        }
+      });
+
+      setSelectedCompartments(selected);
+      setIsSelecting(false);
+      setSelectionStart(null);
+      setSelectionEnd(null);
+    } else if (draggingCompartment) {
       // Сохраняем позицию отсека в Map
       const newPositions = new Map(compartmentPositions);
       newPositions.set(draggingCompartment, {
@@ -195,7 +245,7 @@ export default function GridCompartmentEditor({
         if (c.id === draggingCompartment) {
           return {
             ...c,
-            positionFromBow: dragPosition.x * 10
+            positionFromBow: dragPosition.x * 5 // 5 метров на клетку
           };
         }
         return c;
@@ -205,7 +255,7 @@ export default function GridCompartmentEditor({
     
     setDraggingCompartment(null);
     setDraggingBackground(false);
-  }, [draggingCompartment, draggingBackground, dragPosition, compartmentPositions, compartments, onCompartmentsChange]);
+  }, [isSelecting, selectionStart, selectionEnd, draggingCompartment, draggingBackground, dragPosition, compartmentPositions, compartments, onCompartmentsChange, gridSize]);
 
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
@@ -239,11 +289,41 @@ export default function GridCompartmentEditor({
       fire: 0,
       components: [],
       adjacentIds: [],
-      lengthMeters: 10,
+      lengthMeters: 5, // 5 метров на отсек
       positionFromBow: 0
     };
 
-    // Просто добавляем отсек - useEffect автоматически добавит позицию
+    // Находим свободную клетку в нижнем левом углу
+    let targetPosition: CompartmentGridPosition = { gridX: 0, gridY: rows - 1 };
+    
+    // Проверяем, занята ли клетка (0, rows-1)
+    const isOccupied = Array.from(compartmentPositions.values()).some(
+      pos => pos.gridX === 0 && pos.gridY === rows - 1
+    );
+    
+    if (isOccupied) {
+      // Ищем следующую свободную клетку слева направо, снизу вверх
+      for (let y = rows - 1; y >= 0; y--) {
+        for (let x = 0; x < cols; x++) {
+          const cellOccupied = Array.from(compartmentPositions.values()).some(
+            pos => pos.gridX === x && pos.gridY === y
+          );
+          if (!cellOccupied) {
+            targetPosition = { gridX: x, gridY: y };
+            break;
+          }
+        }
+        if (targetPosition.gridX !== 0 || targetPosition.gridY !== rows - 1) {
+          break;
+        }
+      }
+    }
+
+    // Добавляем отсек с позицией
+    const newPositions = new Map(compartmentPositions);
+    newPositions.set(newCompartment.id, targetPosition);
+    setCompartmentPositions(newPositions);
+    
     onCompartmentsChange([...compartments, newCompartment]);
     setSelectedCompartment(newCompartment.id);
   };
@@ -339,6 +419,25 @@ export default function GridCompartmentEditor({
         <div className="px-3 py-1 bg-cyan-900/50 border border-cyan-600 rounded text-xs font-bold text-cyan-300">
           📊 Отсеков: {compartments.length}
         </div>
+        {selectedCompartments.size > 0 && (
+          <>
+            <div className="px-3 py-1 bg-yellow-900/50 border border-yellow-600 rounded text-xs font-bold text-yellow-300">
+              ✓ Выделено: {selectedCompartments.size}
+            </div>
+            <button
+              onClick={() => {
+                setSelectedCompartments(new Set());
+                setSelectedCompartment(null);
+              }}
+              className="px-3 py-1 bg-slate-600 hover:bg-slate-700 rounded text-xs"
+            >
+              ✕ Снять выделение
+            </button>
+          </>
+        )}
+        <div className="text-xs text-slate-400">
+          💡 Shift+клик для множественного выделения | Shift+перетаскивание для выделения рамкой
+        </div>
       </div>
 
       <input
@@ -405,7 +504,7 @@ export default function GridCompartmentEditor({
           const pos = compartmentPositions.get(comp.id);
           if (!pos) return null;
           
-          const isSelected = selectedCompartment === comp.id;
+          const isSelected = selectedCompartment === comp.id || selectedCompartments.has(comp.id);
           const isDragging = draggingCompartment === comp.id;
           const color = getCompartmentColor(comp);
           
@@ -415,7 +514,23 @@ export default function GridCompartmentEditor({
           return (
             <g
               key={comp.id}
-              onMouseDown={(e) => handleMouseDown(e, comp.id)}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                if (e.shiftKey) {
+                  // Добавляем/удаляем из множественного выделения
+                  const newSelected = new Set(selectedCompartments);
+                  if (newSelected.has(comp.id)) {
+                    newSelected.delete(comp.id);
+                  } else {
+                    newSelected.add(comp.id);
+                  }
+                  setSelectedCompartments(newSelected);
+                } else {
+                  // Одиночное выделение и начало перетаскивания
+                  setSelectedCompartments(new Set([comp.id]));
+                  handleMouseDown(e, comp.id);
+                }
+              }}
               className="cursor-move"
             >
               <rect
@@ -458,73 +573,158 @@ export default function GridCompartmentEditor({
           );
         })}
 
+        {/* Прямоугольник выделения мышкой */}
+        {isSelecting && selectionStart && selectionEnd && (
+          <rect
+            x={padding + Math.min(selectionStart.x, selectionEnd.x)}
+            y={padding + Math.min(selectionStart.y, selectionEnd.y)}
+            width={Math.abs(selectionEnd.x - selectionStart.x)}
+            height={Math.abs(selectionEnd.y - selectionStart.y)}
+            fill="rgba(59, 130, 246, 0.2)"
+            stroke="#3b82f6"
+            strokeWidth="1"
+            strokeDasharray="4,4"
+            pointerEvents="none"
+          />
+        )}
+
         {/* Метки */}
         <text x={padding} y={height - 2} fill="#94a3b8" fontSize="8">НОС</text>
         <text x={width - padding - 30} y={height - 2} fill="#94a3b8" fontSize="8">КОРМА</text>
       </svg>
 
       {/* Панель свойств выбранного отсека */}
-      {selectedCompartment && (
+      {selectedCompartments.size > 0 && (
         <div className="bg-slate-900/50 border border-slate-700 rounded p-3 space-y-2">
-          <div className="text-xs font-bold text-slate-300">Свойства отсека:</div>
-          {(() => {
-            const comp = compartments.find(c => c.id === selectedCompartment);
-            if (!comp) return null;
+          <div className="text-xs font-bold text-slate-300">
+            {selectedCompartments.size === 1 ? 'Свойства отсека:' : `Выбрано отсеков: ${selectedCompartments.size}`}
+          </div>
+          {selectedCompartments.size === 1 ? (
+            // Одиночное выделение - показываем свойства
+            (() => {
+              const compId = Array.from(selectedCompartments)[0];
+              const comp = compartments.find(c => c.id === compId);
+              if (!comp) return null;
 
-            return (
-              <>
-                <div className="text-xs text-slate-400">{comp.name}</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] text-slate-400">Палуба:</label>
-                    <select
-                      value={comp.deck}
-                      onChange={(e) => updateCompartment(comp.id, { deck: e.target.value as CompartmentDeck })}
-                      className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                    >
-                      <option value="upper">Верхняя</option>
-                      <option value="middle">Средняя</option>
-                      <option value="lower">Нижняя</option>
-                    </select>
+              return (
+                <>
+                  <div className="text-xs text-slate-400">{comp.name}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400">Палуба:</label>
+                      <select
+                        value={comp.deck}
+                        onChange={(e) => updateCompartment(comp.id, { deck: e.target.value as CompartmentDeck })}
+                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                      >
+                        <option value="upper">Верхняя</option>
+                        <option value="middle">Средняя</option>
+                        <option value="lower">Нижняя</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">Позиция:</label>
+                      <select
+                        value={comp.position}
+                        onChange={(e) => updateCompartment(comp.id, { position: e.target.value as CompartmentPositionType })}
+                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                      >
+                        <option value="bow">Нос</option>
+                        <option value="forward">Носовая часть</option>
+                        <option value="mid">Центр</option>
+                        <option value="aft">Кормовая часть</option>
+                        <option value="stern">Корма</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400">Статус:</label>
+                      <select
+                        value={comp.status}
+                        onChange={(e) => updateCompartment(comp.id, { status: e.target.value as any })}
+                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                      >
+                        <option value="intact">Целый</option>
+                        <option value="damaged">Повреждён</option>
+                        <option value="flooded">Затоплен</option>
+                        <option value="on_fire">Пожар</option>
+                        <option value="destroyed">Разрушен</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400">Позиция:</label>
-                    <select
-                      value={comp.position}
-                      onChange={(e) => updateCompartment(comp.id, { position: e.target.value as CompartmentPositionType })}
-                      className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                    >
-                      <option value="bow">Нос</option>
-                      <option value="forward">Носовая часть</option>
-                      <option value="mid">Центр</option>
-                      <option value="aft">Кормовая часть</option>
-                      <option value="stern">Корма</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-slate-400">Статус:</label>
-                    <select
-                      value={comp.status}
-                      onChange={(e) => updateCompartment(comp.id, { status: e.target.value as any })}
-                      className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                    >
-                      <option value="intact">Целый</option>
-                      <option value="damaged">Повреждён</option>
-                      <option value="flooded">Затоплен</option>
-                      <option value="on_fire">Пожар</option>
-                      <option value="destroyed">Разрушен</option>
-                    </select>
-                  </div>
-                </div>
+                  <button
+                    onClick={() => deleteCompartment(comp.id)}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white text-xs py-1 rounded"
+                  >
+                    🗑️ Удалить отсек
+                  </button>
+                </>
+              );
+            })()
+          ) : (
+            // Множественное выделение - показываем общие действия
+            <div className="space-y-2">
+              <div className="text-xs text-slate-400">
+                Вы можете изменить статус для всех выбранных отсеков:
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => deleteCompartment(comp.id)}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white text-xs py-1 rounded"
+                  onClick={() => {
+                    const updated = compartments.map(c => 
+                      selectedCompartments.has(c.id) ? { ...c, status: 'intact' as const } : c
+                    );
+                    onCompartmentsChange(updated);
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white text-xs py-1 rounded"
                 >
-                  🗑️ Удалить отсек
+                  ✓ Целый
                 </button>
-              </>
-            );
-          })()}
+                <button
+                  onClick={() => {
+                    const updated = compartments.map(c => 
+                      selectedCompartments.has(c.id) ? { ...c, status: 'damaged' as const } : c
+                    );
+                    onCompartmentsChange(updated);
+                  }}
+                  className="bg-orange-600 hover:bg-orange-700 text-white text-xs py-1 rounded"
+                >
+                  ⚠ Повреждён
+                </button>
+                <button
+                  onClick={() => {
+                    const updated = compartments.map(c => 
+                      selectedCompartments.has(c.id) ? { ...c, status: 'flooded' as const } : c
+                    );
+                    onCompartmentsChange(updated);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 rounded"
+                >
+                  💧 Затоплен
+                </button>
+                <button
+                  onClick={() => {
+                    const updated = compartments.map(c => 
+                      selectedCompartments.has(c.id) ? { ...c, status: 'destroyed' as const } : c
+                    );
+                    onCompartmentsChange(updated);
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs py-1 rounded"
+                >
+                  ✕ Разрушен
+                </button>
+              </div>
+              <button
+                onClick={() => {
+                  const remaining = compartments.filter(c => !selectedCompartments.has(c.id));
+                  onCompartmentsChange(remaining);
+                  setSelectedCompartments(new Set());
+                  setSelectedCompartment(null);
+                }}
+                className="w-full bg-red-600 hover:bg-red-700 text-white text-xs py-1 rounded"
+              >
+                🗑️ Удалить все выбранные ({selectedCompartments.size})
+              </button>
+            </div>
+          )}
         </div>
       )}
 
